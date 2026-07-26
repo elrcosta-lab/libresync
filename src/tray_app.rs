@@ -82,26 +82,37 @@ async fn update_settings(
     state: tauri::State<'_, AppState>,
     settings: UIConfig,
 ) -> Result<bool, String> {
+    // Save client_id to config.toml
+    if !settings.client_id.is_empty() {
+        let mut config = libresync_core::config::LibreSyncConfig::load()
+            .unwrap_or_default();
+        config.google.client_id = settings.client_id.clone();
+        config.save().map_err(|e| format!("Erro ao salvar config: {}", e))?;
+    }
     let mut ui = state.ui_state.lock().map_err(|e| e.to_string())?;
     ui.config = settings;
     Ok(true)
 }
 
 #[tauri::command]
-async fn login(_app: tauri::AppHandle<Wry>) -> Result<String, String> {
-    let client_id = std::env::var("GOOGLE_CLIENT_ID")
-        .or_else(|_| {
-            // Try to read from config file
-            let config = libresync_core::config::LibreSyncConfig::load()
-                .map(|c| c.google.client_id)
-                .unwrap_or_default();
-            if config.is_empty() {
-                Err("GOOGLE_CLIENT_ID not configured")
-            } else {
-                Ok(config)
-            }
-        })
-        .map_err(|_| "GOOGLE_CLIENT_ID não configurado. Edite ~/.config/libresync/config.toml ou execute: export GOOGLE_CLIENT_ID=...")?;
+async fn login(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    let ui = state.ui_state.lock().map_err(|e| e.to_string())?;
+    let client_id = ui.config.client_id.clone();
+    drop(ui);
+
+    let client_id = if !client_id.is_empty() {
+        client_id
+    } else if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
+        id
+    } else if let Ok(config) = libresync_core::config::LibreSyncConfig::load() {
+        if !config.google.client_id.is_empty() {
+            config.google.client_id
+        } else {
+            return Err("GOOGLE_CLIENT_ID não configurado. Vá em Configurações > Google Client ID e cole seu ID do Google Cloud.".to_string());
+        }
+    } else {
+        return Err("GOOGLE_CLIENT_ID não configurado. Vá em Configurações > Google Client ID e cole seu ID do Google Cloud.".to_string());
+    };
 
     let url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:65432/callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",

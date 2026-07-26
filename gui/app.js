@@ -193,6 +193,7 @@ async function loadSettings() {
   try {
     const s = await getSettingsCmd();
     $('#settings-sync-folder').value = s.sync_folder || '';
+    $('#settings-client-id').value = s.client_id || '';
     $('#settings-bandwidth').value = s.bandwidth_limit || '';
     $('#settings-autostart').checked = s.auto_start || false;
     $('#settings-polling').value = s.polling_interval || 30;
@@ -208,6 +209,7 @@ async function saveSettings() {
   try {
     await updateSettingsCmd({
       sync_folder: $('#settings-sync-folder').value,
+      client_id: $('#settings-client-id').value,
       bandwidth_limit: parseInt($('#settings-bandwidth').value) || 0,
       auto_start: $('#settings-autostart').checked,
       polling_interval: parseInt($('#settings-polling').value) || 30,
