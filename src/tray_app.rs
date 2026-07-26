@@ -88,13 +88,31 @@ async fn update_settings(
 }
 
 #[tauri::command]
-async fn login(_app: tauri::AppHandle<Wry>) -> Result<bool, String> {
+async fn login(_app: tauri::AppHandle<Wry>) -> Result<String, String> {
+    let client_id = std::env::var("GOOGLE_CLIENT_ID")
+        .or_else(|_| {
+            // Try to read from config file
+            let config = libresync_core::config::LibreSyncConfig::load()
+                .map(|c| c.google.client_id)
+                .unwrap_or_default();
+            if config.is_empty() {
+                Err("GOOGLE_CLIENT_ID not configured")
+            } else {
+                Ok(config)
+            }
+        })
+        .map_err(|_| "GOOGLE_CLIENT_ID não configurado. Edite ~/.config/libresync/config.toml ou execute: export GOOGLE_CLIENT_ID=...")?;
+
     let url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:65432/callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",
-        std::env::var("GOOGLE_CLIENT_ID").unwrap_or_default()
+        client_id
     );
-    let _ = open::that(&url);
-    Ok(true)
+
+    if open::that(&url).is_err() {
+        return Err("Não foi possível abrir o navegador. Acesse manualmente:".to_string());
+    }
+
+    Ok(url)
 }
 
 #[tauri::command]

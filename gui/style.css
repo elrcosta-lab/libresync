@@ -100,6 +100,12 @@ input[readonly]{opacity:.7;cursor:default}
 .spinner{font-size:2rem;color:#0078d4;animation:spin .8s ease-in-out infinite}
 @keyframes spin{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 
+.notification{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:8px;font-size:.85rem;z-index:100;max-width:90%;text-align:center;transition:opacity .3s}
+.notification.error{background:#d32f2f;color:#fff}
+.notification.info{background:#1976d2;color:#fff}
+.notification.success{background:#388e3c;color:#fff}
+.notification.hidden{opacity:0;pointer-events:none}
+
 /* responsive */
 @media(max-width:480px){
   #app{padding:12px}

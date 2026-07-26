@@ -4,7 +4,15 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 function showLoading(show) {
-  $('#loading-overlay').classList.toggle('hidden', !show);
+  document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+}
+
+function showNotification(msg, type) {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.className = 'notification ' + (type || 'info');
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
 function showScreen(name) {
@@ -246,7 +254,7 @@ async function getSettingsCmd() {
 async function login() {
   showLoading(true);
   try {
-    await invoke('login');
+    const url = await invoke('login');
     const state = await getState();
     if (state.active_account) {
       showDashboard();
@@ -255,7 +263,7 @@ async function login() {
       await loadAccounts();
     }
   } catch (e) {
-    console.error('login:', e);
+    showNotification(e, 'error');
   }
   showLoading(false);
 }
