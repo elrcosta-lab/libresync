@@ -5,7 +5,6 @@ use std::process::Command;
 
 use libresync_core::auth::error::{AuthError, AuthResult};
 use libresync_core::auth::session::PkceSession;
-use libresync_core::auth::token_exchange;
 
 const OAUTH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const LOCAL_PORT: u16 = 65432;
@@ -46,12 +45,62 @@ fn parse_query(path: &str) -> Vec<(String, String)> {
     }
 }
 
+async fn exchange_code(
+    client: &reqwest::Client,
+    client_id: &str,
+    client_secret: Option<&str>,
+    code: &str,
+    code_verifier: &str,
+    redirect_uri: &str,
+) -> AuthResult<TokenResponse> {
+    let mut params = vec![
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("redirect_uri", redirect_uri),
+        ("client_id", client_id),
+        ("code_verifier", code_verifier),
+    ];
+
+    if let Some(secret) = client_secret {
+        params.push(("client_secret", secret));
+    }
+
+    let resp = client
+        .post(OAUTH_TOKEN_URL)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| AuthError::NetworkError(e.to_string()))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str::<TokenResponse>(&body)
+            .map_err(|e| AuthError::StateError(format!("json: {}", e)))
+    } else {
+        Err(AuthError::StateError(format!("HTTP {}: {}", status, body)))
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct TokenResponse {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_in: i64,
+    scope: String,
+    token_type: String,
+    id_token: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> AuthResult<()> {
-    let client_id = env::var("GOOGLE_CLIENT_ID")
-        .expect("GOOGLE_CLIENT_ID env var required");
-
+    let client_id =
+        env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID env var required");
+    let client_secret = env::var("GOOGLE_CLIENT_SECRET").ok();
     let redirect_uri = format!("http://localhost:{}/callback", LOCAL_PORT);
+
     let session = PkceSession::new(&client_id);
     let auth_url = session.authorization_url(&redirect_uri);
 
@@ -91,10 +140,8 @@ async fn main() -> AuthResult<()> {
         .read_line(&mut request_line)
         .map_err(|_| AuthError::LoginTimeout)?;
 
-    // Parse request line: GET /callback?code=...&state=... HTTP/1.1
     let parts: Vec<&str> = request_line.split_whitespace().collect();
     let path = parts.get(1).unwrap_or(&"/");
-
     let query_params = parse_query(path);
 
     // Drain remaining headers
@@ -134,10 +181,10 @@ async fn main() -> AuthResult<()> {
 
     // 5. Exchange code for tokens
     let client = reqwest::Client::new();
-    let token_response = token_exchange::exchange_code(
+    let token_response = exchange_code(
         &client,
-        OAUTH_TOKEN_URL,
         &client_id,
+        client_secret.as_deref(),
         &code,
         &session.code_verifier,
         &redirect_uri,
@@ -148,10 +195,9 @@ async fn main() -> AuthResult<()> {
     let html = format!(
         "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>\
          <h1 style='color:#4CAF50'>✅ Authorization successful!</h1>\
-         <p>Account: <strong>{}</strong></p>\
          <p>Tokens valid for <strong>{}</strong> seconds.</p>\
          <p>You can close this tab and return to the terminal.</p></body></html>",
-        token_response.scope, token_response.expires_in
+        token_response.expires_in
     );
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}",
@@ -164,19 +210,21 @@ async fn main() -> AuthResult<()> {
     println!("\n=== TOKENS ===");
     println!("Access Token:  {}", token_response.access_token);
 
-    if let Some(ref rt) = token_response.refresh_token {
+    if let Some(rt) = token_response.refresh_token.as_deref() {
         println!("Refresh Token: {}", rt);
         println!();
         println!("=== EXPORT (adicione ao seu shell) ===");
         println!("export GOOGLE_CLIENT_ID='{}'", client_id);
+        if let Some(ref secret) = client_secret {
+            println!("export GOOGLE_CLIENT_SECRET='{}'", secret);
+        }
         println!("export GOOGLE_REFRESH_TOKEN='{}'", rt);
     } else {
         println!();
         println!("⚠️  No refresh_token received.");
-        println!("This usually means the Google Cloud project is not configured");
-        println!("with 'Desktop application' OAuth type, or 'access_type=offline'");
-        println!("wasn't honored. Make sure to use 'Desktop app' type and");
-        println!("re-authorize with prompt=consent.");
+        println!("Make sure your OAuth client is configured as 'Desktop application'");
+        println!("type in Google Cloud Console, or the user may need to re-authorize");
+        println!("after revoking access at https://myaccount.google.com/permissions.");
     }
 
     println!("\nExpires In:    {} seconds", token_response.expires_in);
