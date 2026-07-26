@@ -1,4 +1,6 @@
-const { invoke } = window.__TAURI__.core;
+// Tauri IPC — compatible with Tauri 2.x
+const TAURI = window.__TAURI__;
+const invoke = TAURI?.core?.invoke || TAURI?.invoke || (() => { throw new Error('Tauri IPC not available'); });
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
