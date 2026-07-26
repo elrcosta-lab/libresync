@@ -1,1 +1,103 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>LibreSync</title><style>body{font-family:sans-serif;padding:20px;background:#1a1a2e;color:#eee}h1{color:#0078d4}.status{color:#888}</style></head><body><h1>LibreSync</h1><p class="status">Sync is running in the background.</p><p><small>v0.1.0</small></p></body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LibreSync</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <div class="header-bar">
+    <span class="header-title">LibreSync</span>
+    <span class="header-version">v0.1.0</span>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="screen-login" class="screen">
+    <div class="card login-card">
+      <div class="login-icon">☁️</div>
+      <h2>Conectar ao Google Drive</h2>
+      <p class="login-desc">Faça login para sincronizar seus arquivos</p>
+      <button class="btn btn-google" onclick="login()">
+        <span class="google-icon">G</span> Conectar conta Google
+      </button>
+    </div>
+    <div id="accounts-section" class="hidden">
+      <h3>Contas conectadas</h3>
+      <ul id="accounts-list"></ul>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="screen-dashboard" class="screen hidden">
+    <div class="screen-header">
+      <h2>Dashboard</h2>
+      <button class="btn btn-icon" onclick="showSettings()" title="Configurações">⚙️</button>
+    </div>
+    <div id="status-badge" class="status-badge status-synced">✓ Sincronizado</div>
+    <div class="card">
+      <div class="card-title">Conta ativa</div>
+      <div id="account-info" class="account-email">—</div>
+      <div id="quota-info" class="quota-bar">
+        <div class="quota-fill" style="width:0%"></div>
+        <span class="quota-text">0 GB / 0 GB</span>
+      </div>
+    </div>
+    <button id="pause-btn" class="btn" onclick="togglePause()">⏸️ Pausar</button>
+    <div class="card">
+      <div class="card-title">Atividade recente</div>
+      <ul id="activity-list">
+        <li class="activity-empty">Nenhuma atividade ainda</li>
+      </ul>
+    </div>
+    <button class="btn btn-danger" onclick="logout()">🚪 Sair da conta</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="screen-settings" class="screen hidden">
+    <div class="screen-header">
+      <h2>Configurações</h2>
+      <button class="btn btn-icon" onclick="showDashboard()" title="Voltar">⬅️</button>
+    </div>
+    <div class="card">
+      <div class="form-group">
+        <label>Pasta de sincronização</label>
+        <div class="input-row">
+          <input type="text" id="settings-sync-folder" placeholder="/home/user/LibreSync" readonly>
+          <button class="btn btn-sm" onclick="selectFolder()">📁</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Limite de banda (KB/s)</label>
+        <input type="number" id="settings-bandwidth" min="0" placeholder="0 = ilimitado">
+      </div>
+      <div class="form-group">
+        <label class="toggle-label">
+          <span>Iniciar automaticamente</span>
+          <label class="toggle">
+            <input type="checkbox" id="settings-autostart">
+            <span class="toggle-slider"></span>
+          </label>
+        </label>
+      </div>
+      <div class="form-group">
+        <label>Intervalo de polling (s)</label>
+        <input type="number" id="settings-polling" min="1" value="30">
+      </div>
+    </div>
+    <div class="settings-actions">
+      <button class="btn" onclick="saveSettings()">💾 Salvar</button>
+      <button class="btn btn-secondary" onclick="showDashboard()">Voltar</button>
+    </div>
+    <p id="settings-feedback" class="feedback hidden"></p>
+  </div>
+</div>
+
+<div id="loading-overlay" class="hidden">
+  <div class="spinner">⟨ ⟩</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

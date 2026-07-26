@@ -93,7 +93,7 @@ impl SyncActivity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppUiState {
     pub screen: AppScreen,
     pub active_account: Option<AccountInfo>,

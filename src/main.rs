@@ -10,6 +10,7 @@ use libresync_core::drive::DriveApi;
 use libresync_core::instance::InstanceLock;
 use libresync_core::sync::config::SyncConfig;
 use libresync_core::sync::engine::SyncEngine;
+use libresync_core::ui::state::AppUiState;
 
 mod tray_app;
 
@@ -76,7 +77,7 @@ async fn main() {
 
     if is_tray && !is_cli {
         println!("Starting LibreSync in tray mode...");
-        tray_app::run_tray(engine);
+        tray_app::run_tray(engine, AppUiState::new());
     } else {
         run_cli(engine, &config, &sync_dir_str).await;
     }
