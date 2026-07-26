@@ -1,0 +1,19 @@
+{
+  "volta": 1,
+  "tarefas": {
+    "1_drive_api_client": "done",
+    "2_sync_engine_real": "pending",
+    "3_transfer_real": "pending",
+    "4_config_file": "pending",
+    "5_main_binary": "pending",
+    "6_persistence": "pending",
+    "7_keyring": "pending",
+    "8_callback_server": "pending",
+    "9_watcher_real": "pending",
+    "10_e2e_test": "pending"
+  },
+  "tarefa_atual": null,
+  "ultimo_check": "215 passed, 0 failed",
+  "voltas_sem_progresso": 0,
+  "erro_repetido": null
+}
