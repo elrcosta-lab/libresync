@@ -11,6 +11,7 @@ pub enum SyncError {
     AuthError(String),
     IoError(String),
     MaxRetriesExceeded,
+    EngineError(String),
 }
 
 impl fmt::Display for SyncError {
@@ -25,8 +26,15 @@ impl fmt::Display for SyncError {
             SyncError::AuthError(msg) => write!(f, "auth error: {}", msg),
             SyncError::IoError(msg) => write!(f, "I/O error: {}", msg),
             SyncError::MaxRetriesExceeded => write!(f, "max retries exceeded"),
+            SyncError::EngineError(msg) => write!(f, "engine error: {}", msg),
         }
     }
 }
 
 impl std::error::Error for SyncError {}
+
+impl From<crate::drive::error::DriveError> for SyncError {
+    fn from(e: crate::drive::error::DriveError) -> Self {
+        SyncError::EngineError(e.to_string())
+    }
+}

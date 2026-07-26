@@ -8,7 +8,7 @@ const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const GOOGLE_REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
 
 #[async_trait]
-pub trait AuthProvider {
+pub trait AuthProvider: Send + Sync {
     async fn exchange_code(
         &self,
         client_id: &str,
