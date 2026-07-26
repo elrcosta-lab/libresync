@@ -2036,6 +2036,7 @@ harness = false
 | Versão | Data | Autor | Alterações |
 |--------|------|-------|-----------|
 | 1.0 | 2026-07-26 | Product Team | Versão inicial do PRD |
+| 1.1 | 2026-07-26 | Engineering | Seção 12 atualizada: GUI funcional, OAuth2 integrado, setup 100% pela interface |
 
 ---
 
