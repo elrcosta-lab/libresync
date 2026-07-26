@@ -1,0 +1,196 @@
+use crate::conflict::models::{Conflict, ConflictKind};
+use crate::conflict::suffix::generate_conflict_suffix;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConflictResolution {
+    KeepLocal {
+        conflict_copy: Option<String>,
+    },
+    KeepRemote {
+        conflict_copy: Option<String>,
+    },
+    KeepBoth {
+        local_path: String,
+        remote_copy_path: String,
+    },
+    RestoreRemote,
+}
+
+pub struct ConflictResolver;
+
+impl ConflictResolver {
+    pub fn resolve(conflict: &Conflict) -> ConflictResolution {
+        match conflict.kind {
+            ConflictKind::BothModified => {
+                if conflict.local_modified_at > conflict.remote_modified_at {
+                    let copy = generate_conflict_suffix(&conflict.file_entry_id, "drive");
+                    ConflictResolution::KeepLocal {
+                        conflict_copy: Some(copy),
+                    }
+                } else if conflict.remote_modified_at > conflict.local_modified_at {
+                    let copy = generate_conflict_suffix(&conflict.file_entry_id, "maria");
+                    ConflictResolution::KeepRemote {
+                        conflict_copy: Some(copy),
+                    }
+                } else {
+                    let local = conflict.file_entry_id.clone();
+                    let remote_copy = generate_conflict_suffix(&conflict.file_entry_id, "drive");
+                    ConflictResolution::KeepBoth {
+                        local_path: local,
+                        remote_copy_path: remote_copy,
+                    }
+                }
+            }
+            ConflictKind::LocalDeletedRemoteModified => ConflictResolution::RestoreRemote,
+            ConflictKind::RemoteDeletedLocalModified => ConflictResolution::KeepLocal {
+                conflict_copy: None,
+            },
+            ConflictKind::SimultaneousCreate => {
+                let local = conflict.file_entry_id.clone();
+                let remote_copy = generate_conflict_suffix(&conflict.file_entry_id, "drive");
+                ConflictResolution::KeepBoth {
+                    local_path: local,
+                    remote_copy_path: remote_copy,
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conflict::models::ConflictKind;
+
+    fn make_conflict(
+        kind: ConflictKind,
+        file_entry_id: &str,
+        local_modified_at: i64,
+        remote_modified_at: i64,
+        local_hash: &str,
+        remote_hash: &str,
+    ) -> Conflict {
+        Conflict {
+            id: "test-id".into(),
+            kind,
+            file_entry_id: file_entry_id.into(),
+            local_hash: local_hash.into(),
+            remote_hash: remote_hash.into(),
+            local_modified_at,
+            remote_modified_at,
+            detected_at: 0,
+            resolution: None,
+        }
+    }
+
+    #[test]
+    fn test_both_modified_local_wins() {
+        let conflict = make_conflict(
+            ConflictKind::BothModified,
+            "relatorio.docx",
+            2000,
+            1000,
+            "abc",
+            "def",
+        );
+        let resolution = ConflictResolver::resolve(&conflict);
+        assert_eq!(
+            resolution,
+            ConflictResolution::KeepLocal {
+                conflict_copy: Some("relatorio (conflito drive).docx".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_both_modified_remote_wins() {
+        let conflict = make_conflict(
+            ConflictKind::BothModified,
+            "relatorio.docx",
+            1000,
+            2000,
+            "abc",
+            "def",
+        );
+        let resolution = ConflictResolver::resolve(&conflict);
+        assert_eq!(
+            resolution,
+            ConflictResolution::KeepRemote {
+                conflict_copy: Some("relatorio (conflito maria).docx".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_local_deleted_remote_modified_restores_remote() {
+        let conflict = make_conflict(
+            ConflictKind::LocalDeletedRemoteModified,
+            "foto.png",
+            0,
+            0,
+            "",
+            "abc",
+        );
+        let resolution = ConflictResolver::resolve(&conflict);
+        assert_eq!(resolution, ConflictResolution::RestoreRemote);
+    }
+
+    #[test]
+    fn test_remote_deleted_local_modified_keeps_local() {
+        let conflict = make_conflict(
+            ConflictKind::RemoteDeletedLocalModified,
+            "foto.png",
+            0,
+            0,
+            "abc",
+            "",
+        );
+        let resolution = ConflictResolver::resolve(&conflict);
+        assert_eq!(
+            resolution,
+            ConflictResolution::KeepLocal {
+                conflict_copy: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_simultaneous_create_keeps_both() {
+        let conflict = make_conflict(
+            ConflictKind::SimultaneousCreate,
+            "novo.txt",
+            0,
+            0,
+            "abc",
+            "def",
+        );
+        let resolution = ConflictResolver::resolve(&conflict);
+        assert_eq!(
+            resolution,
+            ConflictResolution::KeepBoth {
+                local_path: "novo.txt".into(),
+                remote_copy_path: "novo (conflito drive).txt".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_tie_timestamp_keeps_both() {
+        let conflict = make_conflict(
+            ConflictKind::BothModified,
+            "empate.txt",
+            1000,
+            1000,
+            "abc",
+            "def",
+        );
+        let resolution = ConflictResolver::resolve(&conflict);
+        assert_eq!(
+            resolution,
+            ConflictResolution::KeepBoth {
+                local_path: "empate.txt".into(),
+                remote_copy_path: "empate (conflito drive).txt".into(),
+            }
+        );
+    }
+}
