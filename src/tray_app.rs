@@ -5,9 +5,13 @@ use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::{Manager, RunEvent, Wry};
 
+use libresync_core::auth::provider::{AuthProvider, GoogleAuthProvider};
+use libresync_core::auth::server::CallbackServer;
+use libresync_core::auth::session::PkceSession;
+use libresync_core::keyring::storage::TokenStorage;
 use libresync_core::sync::engine::SyncEngine;
 use libresync_core::ui::config::UIConfig;
-use libresync_core::ui::state::{AppUiState, SyncActivity};
+use libresync_core::ui::state::{AccountInfo, AppUiState, SyncActivity};
 use libresync_core::ui::tray;
 
 const STATUS_ICONS: &[(&str, &[u8])] = &[
@@ -96,34 +100,59 @@ async fn update_settings(
 
 #[tauri::command]
 async fn login(state: tauri::State<'_, AppState>) -> Result<String, String> {
-    let ui = state.ui_state.lock().map_err(|e| e.to_string())?;
-    let client_id = ui.config.client_id.clone();
-    drop(ui);
+    let client_id = {
+        let ui = state.ui_state.lock().map_err(|e| e.to_string())?;
+        let cid = ui.config.client_id.clone();
+        if !cid.is_empty() { cid } else { String::new() }
+    };
 
     let client_id = if !client_id.is_empty() {
         client_id
     } else if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
         id
-    } else if let Ok(config) = libresync_core::config::LibreSyncConfig::load() {
-        if !config.google.client_id.is_empty() {
-            config.google.client_id
-        } else {
-            return Err("GOOGLE_CLIENT_ID não configurado. Vá em Configurações > Google Client ID e cole seu ID do Google Cloud.".to_string());
-        }
     } else {
-        return Err("GOOGLE_CLIENT_ID não configurado. Vá em Configurações > Google Client ID e cole seu ID do Google Cloud.".to_string());
+        return Err("GOOGLE_CLIENT_ID não configurado. Vá em Configurações e cole seu Client ID.".to_string());
     };
 
-    let url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:65432/callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",
-        client_id
-    );
+    run_oauth_flow(&client_id).await?;
 
-    if open::that(&url).is_err() {
-        return Err("Não foi possível abrir o navegador. Acesse manualmente:".to_string());
-    }
+    let mut ui = state.ui_state.lock().map_err(|e| e.to_string())?;
+    ui.add_account(AccountInfo::new("default".into(), "Google Drive".into(), "Conta Google".into()));
+    Ok("Autenticação concluída!".to_string())
+}
 
-    Ok(url)
+async fn run_oauth_flow(client_id: &str) -> Result<(), String> {
+    let session = PkceSession::new(client_id);
+    let redirect_uri = "http://localhost:65432/callback";
+    let auth_url = session.authorization_url(redirect_uri);
+    let server = CallbackServer::new().with_timeout(std::time::Duration::from_secs(300));
+
+    open::that(&auth_url).map_err(|_| "Não foi possível abrir o navegador.".to_string())?;
+
+    let cb = server.wait_for_callback(&session.state).await
+        .map_err(|e| format!("Erro no callback: {}", e))?;
+
+    let provider = GoogleAuthProvider::new();
+    let token_resp = provider.exchange_code(
+        client_id, &cb.code, &session.code_verifier, redirect_uri
+    ).await.map_err(|e| format!("Erro na troca de código: {}", e))?;
+
+    let refresh_token = token_resp.refresh_token
+        .ok_or_else(|| "Google não retornou refresh_token.".to_string())?;
+
+    let token_json = serde_json::json!({
+        "access_token": token_resp.access_token,
+        "refresh_token": refresh_token,
+    }).to_string();
+
+    let _ = TokenStorage::new().await.store("default", &token_json).await;
+
+    let mut config = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+    config.google.refresh_token = Some(refresh_token);
+    config.google.client_id = client_id.to_string();
+    config.save().ok();
+
+    Ok(())
 }
 
 #[tauri::command]
