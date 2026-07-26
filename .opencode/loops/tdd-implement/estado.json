@@ -1,9 +1,11 @@
 {
-  "specs_pendentes": ["auth-oauth2", "sync-engine", "file-watcher", "transfer-managers", "conflict-resolution", "system-tray-ui"],
-  "spec_atual": null,
+  "specs_pendentes": ["sync-engine", "file-watcher", "transfer-managers", "conflict-resolution", "system-tray-ui"],
+  "spec_atual": "auth-oauth2",
   "tentativas": 0,
   "voltas_sem_ganho": 0,
-  "historico": [],
-  "ultima_volta": null,
+  "historico": [
+    {"spec": "auth-oauth2", "status": "em_andamento", "tentativas_usadas": 1, "voltas": 1, "descricao": "RF-01 implementada: code_verifier + code_challenge com TDD. 5 testes passando."}
+  ],
+  "ultima_volta": "2026-07-26T12:30:00Z",
   "baseline": {}
 }
