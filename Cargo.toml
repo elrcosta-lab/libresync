@@ -21,6 +21,7 @@ secret-service = { version = "5", features = ["rt-tokio-crypto-rust"] }
 aes-gcm = "0.10"
 hkdf = "0.12"
 notify-rust = "4"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
