@@ -1,5 +1,5 @@
 {
-  "volta": 2,
+  "volta": 10,
   "tarefas": {
     "1_drive_api_client": "done",
     "2_sync_engine_real": "done",
@@ -10,10 +10,10 @@
     "7_keyring": "skipped",
     "8_callback_server": "skipped",
     "9_watcher_real": "done",
-    "10_e2e_test": "pending"
+    "10_e2e_test": "done"
   },
   "tarefa_atual": null,
-  "ultimo_check": "215 passed, 0 failed",
+  "ultimo_check": "216 passed, 0 failed - e2e sync cycle OK",
   "voltas_sem_progresso": 0,
   "erro_repetido": null
 }
