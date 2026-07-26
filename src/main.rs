@@ -25,7 +25,6 @@ async fn main() {
     let sync_dir = config.sync.local_dir.clone();
     let sync_dir_str = sync_dir.to_string_lossy().to_string();
 
-    let auth = Arc::new(GoogleAuthProvider::new());
     let refresh_token = config
         .google
         .refresh_token
@@ -35,20 +34,31 @@ async fn main() {
         config.google.client_id.clone()
     } else {
         std::env::var("GOOGLE_CLIENT_ID")
-            .expect("GOOGLE_CLIENT_ID required (config or env)")
+            .unwrap_or_default()
     };
 
     let refresh = match refresh_token {
         Some(rt) => rt,
         None => {
-            eprintln!("ERROR: No refresh_token configured.");
-            eprintln!("Run: GOOGLE_CLIENT_ID=... cargo run --bin get_refresh_token");
-            std::process::exit(1);
+            if is_tray && !is_cli {
+                String::new()
+            } else {
+                eprintln!("ERROR: No refresh_token configured.");
+                eprintln!("Run: GOOGLE_CLIENT_ID=... cargo run --bin get_refresh_token");
+                std::process::exit(1);
+            }
         }
     };
 
-    let drive_api: Arc<dyn DriveApi> =
-        Arc::new(DriveApiClient::new(auth, &client_id, &refresh));
+    let drive_api: Arc<dyn DriveApi> = if !client_id.is_empty() && !refresh.is_empty() {
+        let auth = Arc::new(GoogleAuthProvider::new());
+        Arc::new(DriveApiClient::new(auth, &client_id, &refresh))
+    } else {
+        // No credentials yet — tray mode will show config screen
+        let auth = Arc::new(GoogleAuthProvider::new());
+        let fake = "unconfigured";
+        Arc::new(DriveApiClient::new(auth, fake, fake))
+    };
     let sync_config = SyncConfig {
         max_parallel_uploads: 4,
         max_parallel_downloads: 4,

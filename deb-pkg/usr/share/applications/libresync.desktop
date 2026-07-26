@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=LibreSync
+Comment=Google Drive sync client
+Exec=libresync-core --tray
+Icon=libresync
+Terminal=false
+Categories=Utility;Network;FileTransfer;
+StartupNotify=false
+X-GNOME-UsesNotifications=true

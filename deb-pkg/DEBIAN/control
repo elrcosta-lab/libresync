@@ -1,0 +1,12 @@
+Package: libresync
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libgtk-3-0 (>= 3.24), libwebkit2gtk-4.1-0 (>= 2.40), libgdk-pixbuf-2.0-0 (>= 2.40), libjavascriptcoregtk-4.1-0, libsoup-3.0-0 (>= 3.0)
+Maintainer: Emerson Costa <elrcosta@gmail.com>
+Description: Google Drive sync client for Linux
+ Native Google Drive synchronization client with
+ system tray integration, desktop notifications,
+ and real-time file watching via inotify.
+Homepage: https://github.com/elrcosta-lab/libresync

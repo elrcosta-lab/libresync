@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+export PATH="$HOME/.cargo/bin:$PATH"
 
 # Build .deb package for LibreSync
 PKG_VERSION="${1:-0.1.0}"
