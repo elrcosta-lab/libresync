@@ -1,3 +1,6 @@
+#[cfg(feature = "integration-test")]
+pub mod drive_test_client;
+
 use async_trait::async_trait;
 use libresync_core::auth::error::AuthResult;
 use libresync_core::auth::models::TokenSet;

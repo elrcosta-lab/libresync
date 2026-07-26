@@ -36,6 +36,7 @@ async fn test_exchange_code_success() {
         "auth_code_xyz",
         "verifier_abc",
         "http://localhost:9999/callback",
+        None,
     )
     .await;
 
@@ -73,6 +74,7 @@ async fn test_exchange_code_missing_refresh_token() {
         "auth_code_xyz",
         "verifier_abc",
         "http://localhost:9999/callback",
+        None,
     )
     .await;
 
@@ -109,6 +111,7 @@ async fn test_exchange_code_with_id_token() {
         "code",
         "verifier",
         "http://localhost/callback",
+        None,
     )
     .await;
 
@@ -135,7 +138,7 @@ async fn test_refresh_access_token_success() {
 
     let token_url = format!("{}/token", server.uri());
     let result: AuthResult<TokenResponse> =
-        refresh_access_token(&client, &token_url, "client_id_123", "1//old_refresh").await;
+        refresh_access_token(&client, &token_url, "client_id_123", "1//old_refresh", None).await;
 
     assert!(result.is_ok());
     let token = result.unwrap();
@@ -193,6 +196,7 @@ async fn test_rate_limit_returns_error() {
         "code",
         "verifier",
         "http://localhost/callback",
+        None,
     )
     .await;
 

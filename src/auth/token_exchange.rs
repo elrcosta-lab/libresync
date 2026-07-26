@@ -22,14 +22,18 @@ pub async fn exchange_code(
     code: &str,
     code_verifier: &str,
     redirect_uri: &str,
+    client_secret: Option<&str>,
 ) -> AuthResult<TokenResponse> {
-    let params = [
+    let mut params = vec![
         ("grant_type", "authorization_code"),
         ("code", code),
         ("code_verifier", code_verifier),
         ("redirect_uri", redirect_uri),
         ("client_id", client_id),
     ];
+    if let Some(secret) = client_secret {
+        params.push(("client_secret", secret));
+    }
 
     let resp = client
         .post(token_url)
@@ -46,12 +50,16 @@ pub async fn refresh_access_token(
     token_url: &str,
     client_id: &str,
     refresh_token: &str,
+    client_secret: Option<&str>,
 ) -> AuthResult<TokenResponse> {
-    let params = [
+    let mut params = vec![
         ("grant_type", "refresh_token"),
         ("refresh_token", refresh_token),
         ("client_id", client_id),
     ];
+    if let Some(secret) = client_secret {
+        params.push(("client_secret", secret));
+    }
 
     let resp = client
         .post(token_url)

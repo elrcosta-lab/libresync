@@ -34,19 +34,35 @@ pub trait AuthProvider {
 
 pub struct GoogleAuthProvider {
     client: reqwest::Client,
+    client_secret: Option<String>,
 }
 
 impl GoogleAuthProvider {
     pub fn new() -> Self {
+        let client_secret = std::env::var("GOOGLE_CLIENT_SECRET").ok();
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("failed to build reqwest Client");
-        Self { client }
+        Self {
+            client,
+            client_secret,
+        }
     }
 
     pub fn with_client(client: reqwest::Client) -> Self {
-        Self { client }
+        let client_secret = std::env::var("GOOGLE_CLIENT_SECRET").ok();
+        Self {
+            client,
+            client_secret,
+        }
+    }
+
+    pub fn with_client_secret(client: reqwest::Client, client_secret: &str) -> Self {
+        Self {
+            client,
+            client_secret: Some(client_secret.to_string()),
+        }
     }
 }
 
@@ -72,6 +88,7 @@ impl AuthProvider for GoogleAuthProvider {
             code,
             code_verifier,
             redirect_uri,
+            self.client_secret.as_deref(),
         )
         .await
     }
@@ -86,6 +103,7 @@ impl AuthProvider for GoogleAuthProvider {
             GOOGLE_TOKEN_URL,
             client_id,
             refresh_token,
+            self.client_secret.as_deref(),
         )
         .await
     }
