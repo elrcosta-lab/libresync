@@ -71,10 +71,18 @@ impl DriveApi for MockDriveApi {
         Ok(vec![])
     }
 
-    async fn get_metadata(&self, file_id: &str) -> DriveResult<DriveFile> {
-        Err(libresync_core::drive::error::DriveError::NotFound(
-            file_id.to_string(),
-        ))
+    async fn get_metadata(&self, _file_id: &str) -> DriveResult<DriveFile> {
+        Ok(DriveFile {
+            id: "mock_file_id".into(),
+            name: "mock_file.txt".into(),
+            mime_type: "text/plain".into(),
+            size: None,
+            created_time: None,
+            modified_time: None,
+            md5_checksum: None,
+            parents: None,
+            trashed: false,
+        })
     }
 
     async fn upload(
@@ -109,5 +117,5 @@ impl DriveApi for MockDriveApi {
 pub fn create_test_engine() -> SyncEngine {
     let drive: Arc<dyn DriveApi> = Arc::new(MockDriveApi);
     let config = SyncConfig::default();
-    SyncEngine::new(drive, config)
+    SyncEngine::new(drive, config, "/tmp/libresync-test")
 }

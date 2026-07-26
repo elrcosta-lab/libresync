@@ -12,15 +12,17 @@ pub struct SyncEngine {
     drive_client: Arc<dyn DriveApi>,
     #[allow(dead_code)]
     config: SyncConfig,
+    sync_dir: String,
 }
 
 impl SyncEngine {
-    pub fn new(drive_client: Arc<dyn DriveApi>, config: SyncConfig) -> Self {
+    pub fn new(drive_client: Arc<dyn DriveApi>, config: SyncConfig, sync_dir: &str) -> Self {
         Self {
             state_machine: SyncStateMachine::new(),
             job_queue: Arc::new(Mutex::new(JobQueue::new())),
             drive_client,
             config,
+            sync_dir: sync_dir.to_string(),
         }
     }
 
@@ -178,13 +180,19 @@ impl SyncEngine {
     }
 
     pub async fn on_remote_change(&mut self, file_id: &str) -> Result<(), SyncError> {
+        let meta = self
+            .drive_client
+            .get_metadata(file_id)
+            .await
+            .map_err(|e| SyncError::EngineError(format!("metadata: {}", e)))?;
+
         let data = self
             .drive_client
             .download(file_id)
             .await
             .map_err(|e| SyncError::EngineError(format!("download: {}", e)))?;
 
-        let local_path = format!("/tmp/libresync/{}", file_id);
+        let local_path = format!("{}/{}", self.sync_dir, meta.name);
         if let Some(parent) = std::path::Path::new(&local_path).parent() {
             tokio::fs::create_dir_all(parent)
                 .await
