@@ -1,0 +1,18 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stylized Tux drawing -->
+  <g id="Tux">
+    <path id="body" d="M128 32C83.8 32 48 67.8 48 112v64c0 44.2 35.8 80 80 80s80-35.8 80-80v-64c0-44.2-35.8-80-80-80z" fill="#000"/>
+    <path id="white_belly" d="M128 64c-35.3 0-64 28.7-64 64s28.7 64 64 64 64-28.7 64-64-28.7-64-64-64z" fill="#fff"/>
+    <!-- Placeholder eyes, beak, feet details would go here -->
+    <circle id="left_eye" cx="108" cy="112" r="8" fill="#000"/>
+    <circle id="right_eye" cx="148" cy="112" r="8" fill="#000"/>
+    <path id="beak" d="M128 132l-12 16h24l-12-16z" fill="#f90"/>
+    <ellipse id="left_foot" cx="100" cy="240" rx="20" ry="10" fill="#f90"/>
+    <ellipse id="right_foot" cx="156" cy="240" rx="20" ry="10" fill="#f90"/>
+  </g>
+  <!-- Sync Cloud -->
+  <g id="cloud_sync" transform="translate(144, 144)">
+    <path id="cloud" d="M36 0C16.1 0 0 16.1 0 36s16.1 36 36 36c3.2 0 6.3-.4 9.3-1.2C49.9 76.9 59.5 84 72 84c16.6 0 30-13.4 30-30s-13.4-30-30-30c-1.3 0-2.6.1-3.8.3C66.1 8 52 0 36 0z" fill="#add8e6"/>
+    <path id="sync_arrows" d="M72 42c0-8.8-7.2-16-16-16s-16 7.2-16 16c0 3.3 1.1 6.3 3 8.7L36 58c-5.1-4.7-8-11.2-8-18.3 0-14.4 11.6-26 26-26s26 11.6 26 26c0 6.7-2.6 13.1-7 17.7L66 50.3c2.4-2.2 3.8-5.3 3.8-8.3z" fill="#fff" transform="translate(-56, -42)"/>
+  </g>
+</svg>
