@@ -118,7 +118,7 @@ impl DriveApi for StatefulMockDriveApi {
 
 fn create_engine_with_mock(mock: Arc<dyn DriveApi>) -> SyncEngine {
     let config = SyncConfig::default();
-    SyncEngine::new(mock, config, "/tmp/libresync-test")
+    SyncEngine::new(mock, config, "/tmp/libresync-test", None)
 }
 
 fn sha256_hex(data: &[u8]) -> String {

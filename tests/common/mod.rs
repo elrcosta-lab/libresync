@@ -117,5 +117,5 @@ impl DriveApi for MockDriveApi {
 pub fn create_test_engine() -> SyncEngine {
     let drive: Arc<dyn DriveApi> = Arc::new(MockDriveApi);
     let config = SyncConfig::default();
-    SyncEngine::new(drive, config, "/tmp/libresync-test")
+    SyncEngine::new(drive, config, "/tmp/libresync-test", None)
 }

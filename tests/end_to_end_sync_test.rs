@@ -35,7 +35,7 @@ async fn test_end_to_end_sync_cycle() {
     let drive_api: Arc<dyn DriveApi> =
         Arc::new(DriveApiClient::new(auth.clone(), &client_id, &refresh_token));
     let sync_config = SyncConfig::default();
-    let mut engine = SyncEngine::new(drive_api, sync_config, &sync_dir);
+    let mut engine = SyncEngine::new(drive_api, sync_config, &sync_dir, None);
 
     // Upload the file via engine
     engine

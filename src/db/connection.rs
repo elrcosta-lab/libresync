@@ -1,16 +1,23 @@
+use std::path::PathBuf;
+use std::sync::Mutex;
+
 use rusqlite::Connection;
 
 use crate::db::DbError;
 
 pub struct Database {
-    conn: Connection,
+    conn: Mutex<Connection>,
+    path: PathBuf,
 }
 
 impl Database {
     pub fn open(path: &str) -> Result<Self, DbError> {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
-        let db = Self { conn };
+        let db = Self {
+            conn: Mutex::new(conn),
+            path: PathBuf::from(path),
+        };
         db.migrate()?;
         Ok(db)
     }
@@ -30,8 +37,13 @@ impl Database {
         })?)
     }
 
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
     pub fn migrate(&self) -> Result<(), DbError> {
-        self.conn.execute_batch(
+        let conn = self.conn.lock().map_err(|e| DbError::LockError(e.to_string()))?;
+        conn.execute_batch(
             "
 CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
@@ -73,8 +85,8 @@ CREATE TABLE IF NOT EXISTS jobs (
         Ok(())
     }
 
-    pub fn conn(&self) -> &Connection {
-        &self.conn
+    pub fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().expect("DB lock poisoned")
     }
 }
 

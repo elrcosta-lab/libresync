@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use libresync_core::auth::provider::GoogleAuthProvider;
 use libresync_core::config::LibreSyncConfig;
+use libresync_core::db::Database;
 use libresync_core::drive::client::DriveApiClient;
 use libresync_core::drive::DriveApi;
 use libresync_core::sync::config::SyncConfig;
@@ -52,7 +53,20 @@ async fn main() {
         backoff_base_secs: 1,
         backoff_max_secs: 300,
     };
-    let engine = SyncEngine::new(drive_api, sync_config, &sync_dir_str);
+    let engine = match Database::open_default() {
+        Ok(db) => {
+            if let Err(e) = db.migrate() {
+                eprintln!("WARNING: DB migration failed: {}", e);
+            }
+            let db = Arc::new(db);
+            println!("Database: {}", db.path().display());
+            SyncEngine::new(drive_api, sync_config, &sync_dir_str, Some(db))
+        }
+        Err(e) => {
+            eprintln!("WARNING: could not open database ({}), running without persistence", e);
+            SyncEngine::new(drive_api, sync_config, &sync_dir_str, None)
+        }
+    };
 
     if let Err(e) = std::fs::create_dir_all(&sync_dir) {
         eprintln!("WARNING: could not create sync dir: {}", e);

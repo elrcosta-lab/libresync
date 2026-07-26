@@ -4,6 +4,7 @@ use crate::conflict::config::ConflictConfig;
 use crate::conflict::detector::ConflictInput;
 use crate::conflict::engine::ConflictEngine;
 use crate::conflict::resolver::ConflictResolution;
+use crate::db::Database;
 use crate::drive::error::DriveError;
 use crate::drive::DriveApi;
 use crate::sync::config::SyncConfig;
@@ -19,6 +20,8 @@ pub struct SyncEngine {
     config: SyncConfig,
     sync_dir: String,
     conflict_engine: ConflictEngine,
+    #[allow(dead_code)]
+    db: Option<Arc<Database>>,
 }
 
 fn compute_local_hash(data: &[u8]) -> String {
@@ -38,7 +41,13 @@ async fn local_modified_timestamp(path: &str) -> i64 {
 }
 
 impl SyncEngine {
-    pub fn new(drive_client: Arc<dyn DriveApi>, config: SyncConfig, sync_dir: &str) -> Self {
+    pub fn new(
+        drive_client: Arc<dyn DriveApi>,
+        config: SyncConfig,
+        sync_dir: &str,
+    #[allow(dead_code)]
+    db: Option<Arc<Database>>,
+    ) -> Self {
         let conflict_config = ConflictConfig {
             suffix_local: " (conflito maria)".into(),
             suffix_remote: " (conflito drive)".into(),
@@ -51,6 +60,7 @@ impl SyncEngine {
             config,
             sync_dir: sync_dir.to_string(),
             conflict_engine: ConflictEngine::new(conflict_config),
+            db,
         }
     }
 

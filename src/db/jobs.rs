@@ -1,6 +1,6 @@
-use rusqlite::{params, Connection};
+use rusqlite::params;
 
-use crate::db::DbError;
+use crate::db::{Database, DbError};
 use crate::sync::job::{JobState, SyncJob, JobType};
 
 fn job_type_to_str(t: &JobType) -> &'static str {
@@ -63,7 +63,8 @@ fn row_to_job(row: &rusqlite::Row) -> Result<SyncJob, rusqlite::Error> {
     })
 }
 
-pub fn insert_job(conn: &Connection, job: &SyncJob) -> Result<(), DbError> {
+pub fn insert_job(db: &Database, job: &SyncJob) -> Result<(), DbError> {
+    let conn = db.conn();
     conn.execute(
         "INSERT INTO jobs (id, file_path, job_type, priority, state, retry_count, max_retries, created_at, error_message)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -82,7 +83,8 @@ pub fn insert_job(conn: &Connection, job: &SyncJob) -> Result<(), DbError> {
     Ok(())
 }
 
-pub fn get_job(conn: &Connection, id: &str) -> Result<Option<SyncJob>, DbError> {
+pub fn get_job(db: &Database, id: &str) -> Result<Option<SyncJob>, DbError> {
+    let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT id, file_path, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs WHERE id = ?1",
     )?;
@@ -93,7 +95,8 @@ pub fn get_job(conn: &Connection, id: &str) -> Result<Option<SyncJob>, DbError> 
     }
 }
 
-pub fn list_jobs(conn: &Connection, state: Option<JobState>) -> Result<Vec<SyncJob>, DbError> {
+pub fn list_jobs(db: &Database, state: Option<JobState>) -> Result<Vec<SyncJob>, DbError> {
+    let conn = db.conn();
     let mut jobs = Vec::new();
     match state {
         Some(s) => {
@@ -119,11 +122,12 @@ pub fn list_jobs(conn: &Connection, state: Option<JobState>) -> Result<Vec<SyncJ
 }
 
 pub fn update_job_state(
-    conn: &Connection,
+    db: &Database,
     id: &str,
     state: JobState,
     error: Option<&str>,
 ) -> Result<(), DbError> {
+    let conn = db.conn();
     let affected = conn.execute(
         "UPDATE jobs SET state = ?2, error_message = ?3 WHERE id = ?1",
         params![id, job_state_to_str(&state), error],
@@ -134,7 +138,8 @@ pub fn update_job_state(
     Ok(())
 }
 
-pub fn delete_job(conn: &Connection, id: &str) -> Result<(), DbError> {
+pub fn delete_job(db: &Database, id: &str) -> Result<(), DbError> {
+    let conn = db.conn();
     let affected = conn.execute("DELETE FROM jobs WHERE id = ?1", params![id])?;
     if affected == 0 {
         return Err(DbError::JobNotFound(id.to_string()));
@@ -142,7 +147,8 @@ pub fn delete_job(conn: &Connection, id: &str) -> Result<(), DbError> {
     Ok(())
 }
 
-pub fn clear_completed_jobs(conn: &Connection) -> Result<(), DbError> {
+pub fn clear_completed_jobs(db: &Database) -> Result<(), DbError> {
+    let conn = db.conn();
     conn.execute(
         "DELETE FROM jobs WHERE state = ?1 OR state = ?2",
         params![job_state_to_str(&JobState::Completed), job_state_to_str(&JobState::Cancelled)],

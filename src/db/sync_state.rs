@@ -1,6 +1,6 @@
-use rusqlite::{params, Connection};
+use rusqlite::params;
 
-use crate::db::DbError;
+use crate::db::{Database, DbError};
 
 #[derive(Debug, Clone)]
 pub struct SyncStateEntry {
@@ -23,7 +23,8 @@ fn row_to_sync_state(row: &rusqlite::Row) -> Result<SyncStateEntry, rusqlite::Er
     })
 }
 
-pub fn upsert_sync_state(conn: &Connection, entry: &SyncStateEntry) -> Result<(), DbError> {
+pub fn upsert_sync_state(db: &Database, entry: &SyncStateEntry) -> Result<(), DbError> {
+    let conn = db.conn();
     conn.execute(
         "INSERT INTO sync_state (path, local_modified_at, remote_modified_at, local_hash, remote_hash, last_sync_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -45,7 +46,8 @@ pub fn upsert_sync_state(conn: &Connection, entry: &SyncStateEntry) -> Result<()
     Ok(())
 }
 
-pub fn get_sync_state(conn: &Connection, path: &str) -> Result<Option<SyncStateEntry>, DbError> {
+pub fn get_sync_state(db: &Database, path: &str) -> Result<Option<SyncStateEntry>, DbError> {
+    let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT path, local_modified_at, remote_modified_at, local_hash, remote_hash, last_sync_at FROM sync_state WHERE path = ?1",
     )?;
@@ -56,7 +58,8 @@ pub fn get_sync_state(conn: &Connection, path: &str) -> Result<Option<SyncStateE
     }
 }
 
-pub fn list_sync_states(conn: &Connection) -> Result<Vec<SyncStateEntry>, DbError> {
+pub fn list_sync_states(db: &Database) -> Result<Vec<SyncStateEntry>, DbError> {
+    let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT path, local_modified_at, remote_modified_at, local_hash, remote_hash, last_sync_at FROM sync_state ORDER BY path ASC",
     )?;
@@ -68,7 +71,8 @@ pub fn list_sync_states(conn: &Connection) -> Result<Vec<SyncStateEntry>, DbErro
     Ok(entries)
 }
 
-pub fn delete_sync_state(conn: &Connection, path: &str) -> Result<(), DbError> {
+pub fn delete_sync_state(db: &Database, path: &str) -> Result<(), DbError> {
+    let conn = db.conn();
     let affected =
         conn.execute("DELETE FROM sync_state WHERE path = ?1", params![path])?;
     if affected == 0 {

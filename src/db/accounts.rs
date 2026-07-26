@@ -1,7 +1,7 @@
-use rusqlite::{params, Connection};
+use rusqlite::params;
 
 use crate::auth::models::{Account, AccountStatus};
-use crate::db::DbError;
+use crate::db::{Database, DbError};
 
 fn status_to_str(s: &AccountStatus) -> &'static str {
     match s {
@@ -22,7 +22,8 @@ fn status_from_str(s: &str) -> Result<AccountStatus, DbError> {
     }
 }
 
-pub fn insert_account(conn: &Connection, account: &Account) -> Result<(), DbError> {
+pub fn insert_account(db: &Database, account: &Account) -> Result<(), DbError> {
+    let conn = db.conn();
     conn.execute(
         "INSERT INTO accounts (id, email, display_name, avatar_url, scope, token_expires_at, status, is_active, created_at, last_sync_at, quota_total, quota_used)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
@@ -62,7 +63,8 @@ fn row_to_account(row: &rusqlite::Row) -> Result<Account, rusqlite::Error> {
     })
 }
 
-pub fn get_account(conn: &Connection, id: &str) -> Result<Option<Account>, DbError> {
+pub fn get_account(db: &Database, id: &str) -> Result<Option<Account>, DbError> {
+    let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT id, email, display_name, avatar_url, scope, token_expires_at, status, is_active, created_at, last_sync_at, quota_total, quota_used FROM accounts WHERE id = ?1",
     )?;
@@ -73,7 +75,8 @@ pub fn get_account(conn: &Connection, id: &str) -> Result<Option<Account>, DbErr
     }
 }
 
-pub fn get_account_by_email(conn: &Connection, email: &str) -> Result<Option<Account>, DbError> {
+pub fn get_account_by_email(db: &Database, email: &str) -> Result<Option<Account>, DbError> {
+    let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT id, email, display_name, avatar_url, scope, token_expires_at, status, is_active, created_at, last_sync_at, quota_total, quota_used FROM accounts WHERE email = ?1",
     )?;
@@ -84,7 +87,8 @@ pub fn get_account_by_email(conn: &Connection, email: &str) -> Result<Option<Acc
     }
 }
 
-pub fn list_accounts(conn: &Connection) -> Result<Vec<Account>, DbError> {
+pub fn list_accounts(db: &Database) -> Result<Vec<Account>, DbError> {
+    let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT id, email, display_name, avatar_url, scope, token_expires_at, status, is_active, created_at, last_sync_at, quota_total, quota_used FROM accounts ORDER BY created_at ASC",
     )?;
@@ -96,7 +100,8 @@ pub fn list_accounts(conn: &Connection) -> Result<Vec<Account>, DbError> {
     Ok(accounts)
 }
 
-pub fn update_account(conn: &Connection, account: &Account) -> Result<(), DbError> {
+pub fn update_account(db: &Database, account: &Account) -> Result<(), DbError> {
+    let conn = db.conn();
     let affected = conn.execute(
         "UPDATE accounts SET email = ?2, display_name = ?3, avatar_url = ?4, scope = ?5, token_expires_at = ?6, status = ?7, is_active = ?8, last_sync_at = ?9, quota_total = ?10, quota_used = ?11 WHERE id = ?1",
         params![
@@ -119,7 +124,8 @@ pub fn update_account(conn: &Connection, account: &Account) -> Result<(), DbErro
     Ok(())
 }
 
-pub fn delete_account(conn: &Connection, id: &str) -> Result<(), DbError> {
+pub fn delete_account(db: &Database, id: &str) -> Result<(), DbError> {
+    let conn = db.conn();
     let affected = conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
     if affected == 0 {
         return Err(DbError::AccountNotFound(id.to_string()));
@@ -127,7 +133,8 @@ pub fn delete_account(conn: &Connection, id: &str) -> Result<(), DbError> {
     Ok(())
 }
 
-pub fn set_active_account(conn: &Connection, id: &str) -> Result<(), DbError> {
+pub fn set_active_account(db: &Database, id: &str) -> Result<(), DbError> {
+    let conn = db.conn();
     conn.execute("UPDATE accounts SET is_active = 0", [])?;
     let affected =
         conn.execute("UPDATE accounts SET is_active = 1 WHERE id = ?1", params![id])?;

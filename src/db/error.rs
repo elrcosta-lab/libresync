@@ -18,4 +18,6 @@ pub enum DbError {
     InvalidJobState(String),
     #[error("database path not found: {0}")]
     PathNotFound(PathBuf),
+    #[error("lock error: {0}")]
+    LockError(String),
 }
