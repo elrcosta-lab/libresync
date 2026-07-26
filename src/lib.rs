@@ -1,9 +1,12 @@
 pub mod auth;
+pub mod autostart;
 pub mod config;
 pub mod conflict;
 pub mod db;
 pub mod drive;
 pub mod error_handler;
+pub mod instance;
+pub mod keyring;
 pub mod notification;
 pub mod sync;
 pub mod transfer;

@@ -5,7 +5,11 @@ use std::path::PathBuf;
 
 enum Backend {
     Keyring,
-    Fallback { tokens_dir: PathBuf },
+    #[allow(dead_code)]
+    Fallback {
+        #[allow(dead_code)]
+        tokens_dir: PathBuf,
+    },
 }
 
 pub struct TokenStorage {

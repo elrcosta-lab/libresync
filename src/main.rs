@@ -7,6 +7,7 @@ use libresync_core::config::LibreSyncConfig;
 use libresync_core::db::Database;
 use libresync_core::drive::client::DriveApiClient;
 use libresync_core::drive::DriveApi;
+use libresync_core::instance::InstanceLock;
 use libresync_core::sync::config::SyncConfig;
 use libresync_core::sync::engine::SyncEngine;
 
@@ -14,6 +15,7 @@ mod tray_app;
 
 #[tokio::main]
 async fn main() {
+    let _lock = InstanceLock::acquire().expect("LibreSync já está rodando");
     let args: Vec<String> = std::env::args().collect();
     let is_tray = args.iter().any(|a| a == "--tray");
     let is_cli = args.iter().any(|a| a == "--cli");
