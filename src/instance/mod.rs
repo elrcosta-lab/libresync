@@ -21,6 +21,12 @@ impl InstanceLock {
 
     pub fn acquire_at(path: impl AsRef<Path>) -> Result<Self, InstanceError> {
         let path = path.as_ref().to_path_buf();
+
+        // Read existing PID before opening (truncate would destroy it)
+        let old_pid: Option<u32> = fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| s.trim().parse().ok());
+
         let file = fs::OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -29,15 +35,10 @@ impl InstanceLock {
             .open(&path)
             .map_err(|e| InstanceError::IoError(e.to_string()))?;
 
-        file.try_lock_exclusive().map_err(|_| {
-            let pid = fs::read_to_string(&path).ok();
-            let pid: u32 = pid
-                .and_then(|s| s.trim().parse().ok())
-                .unwrap_or(0);
-            InstanceError::AlreadyRunning(pid)
-        })?;
+        if file.try_lock_exclusive().is_err() {
+            return Err(InstanceError::AlreadyRunning(old_pid.unwrap_or(0)));
+        }
 
-        file.set_len(0).ok();
         writeln!(&file, "{}", std::process::id())
             .map_err(|e| InstanceError::IoError(e.to_string()))?;
         file.sync_all().ok();
