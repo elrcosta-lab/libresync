@@ -3,8 +3,8 @@
   "tarefas": {
     "1_drive_api_client": "done",
     "2_sync_engine_real": "done",
-    "3_transfer_real": "pending",
-    "4_config_file": "pending",
+    "3_transfer_real": "skipped",
+    "4_config_file": "done",
     "5_main_binary": "pending",
     "6_persistence": "pending",
     "7_keyring": "pending",

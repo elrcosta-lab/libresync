@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod config;
 pub mod conflict;
 pub mod drive;
 pub mod sync;
