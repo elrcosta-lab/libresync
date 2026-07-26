@@ -9,10 +9,13 @@ use libresync_core::drive::DriveApi;
 use libresync_core::sync::config::SyncConfig;
 use libresync_core::sync::engine::SyncEngine;
 
+mod tray_app;
+
 #[tokio::main]
 async fn main() {
-    println!("LibreSync v{}", env!("CARGO_PKG_VERSION"));
-    println!();
+    let args: Vec<String> = std::env::args().collect();
+    let is_tray = args.iter().any(|a| a == "--tray");
+    let is_cli = args.iter().any(|a| a == "--cli");
 
     let config = load_config();
     let sync_dir = config.sync.local_dir.clone();
@@ -24,7 +27,6 @@ async fn main() {
         .refresh_token
         .clone()
         .or_else(|| std::env::var("GOOGLE_REFRESH_TOKEN").ok());
-
     let client_id = if !config.google.client_id.is_empty() {
         config.google.client_id.clone()
     } else {
@@ -36,8 +38,6 @@ async fn main() {
         Some(rt) => rt,
         None => {
             eprintln!("ERROR: No refresh_token configured.");
-            eprintln!("Set GOOGLE_REFRESH_TOKEN env var or config.toml");
-            eprintln!();
             eprintln!("Run: GOOGLE_CLIENT_ID=... cargo run --bin get_refresh_token");
             std::process::exit(1);
         }
@@ -52,12 +52,26 @@ async fn main() {
         backoff_base_secs: 1,
         backoff_max_secs: 300,
     };
-    let mut engine = SyncEngine::new(drive_api, sync_config, &sync_dir_str);
+    let engine = SyncEngine::new(drive_api, sync_config, &sync_dir_str);
 
     if let Err(e) = std::fs::create_dir_all(&sync_dir) {
         eprintln!("WARNING: could not create sync dir: {}", e);
     }
 
+    if is_tray && !is_cli {
+        println!("Starting LibreSync in tray mode...");
+        tray_app::run_tray(engine);
+    } else {
+        run_cli(engine, &config, &sync_dir_str).await;
+    }
+}
+
+async fn run_cli(
+    mut engine: SyncEngine,
+    config: &libresync_core::config::LibreSyncConfig,
+    sync_dir_str: &str,
+) {
+    let sync_dir = std::path::PathBuf::from(sync_dir_str);
     let poll = Duration::from_secs(config.sync.poll_interval_secs);
     let mut local_files: HashMap<String, std::time::SystemTime> = HashMap::new();
 
@@ -72,7 +86,6 @@ async fn main() {
         tick += 1;
         println!("[{}] Scanning local files...", tick);
 
-        // Local file scan
         if let Ok(entries) = std::fs::read_dir(&sync_dir) {
             let mut current: HashMap<String, std::time::SystemTime> = HashMap::new();
             for entry in entries.flatten() {
@@ -135,15 +148,9 @@ fn load_config() -> LibreSyncConfig {
         println!("No config file at {}", path.display());
         println!("Using env vars: GOOGLE_CLIENT_ID, GOOGLE_REFRESH_TOKEN");
         println!();
-        println!("To create a config file:");
-        println!("  mkdir -p {}", path.parent().unwrap().display());
-        println!("  cat > {} << 'EOF'", path.display());
-        println!("  [google]");
-        println!("  client_id = \"...\"");
-        println!("  refresh_token = \"...\"");
-        println!("  [sync]");
-        println!("  local_dir = \"~/LibreSync\"");
-        println!("  EOF");
+        println!("Usage:");
+        println!("  cargo run --bin libresync-core       # CLI mode (default)");
+        println!("  cargo run --bin libresync-core -- --tray  # Tray mode");
         println!();
     }
 

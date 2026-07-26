@@ -1,0 +1,23 @@
+{
+  "productName": "LibreSync",
+  "version": "0.1.0",
+  "identifier": "com.libresync.desktop",
+  "build": {
+    "frontendDist": "./gui"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LibreSync",
+        "width": 480,
+        "height": 320,
+        "resizable": false,
+        "decorations": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
