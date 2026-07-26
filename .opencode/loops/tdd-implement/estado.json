@@ -1,0 +1,9 @@
+{
+  "specs_pendentes": ["auth-oauth2", "sync-engine", "file-watcher", "transfer-managers", "conflict-resolution", "system-tray-ui"],
+  "spec_atual": null,
+  "tentativas": 0,
+  "voltas_sem_ganho": 0,
+  "historico": [],
+  "ultima_volta": null,
+  "baseline": {}
+}
