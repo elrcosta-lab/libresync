@@ -127,7 +127,13 @@ async fn run_oauth_flow(client_id: &str) -> Result<(), String> {
     let auth_url = session.authorization_url(redirect_uri);
     let server = CallbackServer::new().with_timeout(std::time::Duration::from_secs(300));
 
-    open::that(&auth_url).map_err(|_| "Não foi possível abrir o navegador.".to_string())?;
+    // Envolver open::that em spawn_blocking para não bloquear o runtime
+    let url_clone = auth_url.clone();
+    tokio::task::spawn_blocking(move || {
+        let _ = open::that(&url_clone);
+    })
+    .await
+    .ok();
 
     let cb = server.wait_for_callback(&session.state).await
         .map_err(|e| format!("Erro no callback: {}", e))?;
@@ -241,17 +247,25 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                     });
                 }
                 "config_id" => {
-                    if let Ok(input) = std::process::Command::new("zenity")
-                        .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
-                        .output()
-                    {
-                        let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
-                        if !cid.is_empty() {
-                            let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
-                            cfg.google.client_id = cid;
-                            cfg.save().ok();
+                    tauri::async_runtime::spawn(async {
+                        let input = tokio::task::spawn_blocking(|| {
+                            std::process::Command::new("zenity")
+                                .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
+                                .output()
+                        })
+                        .await
+                        .ok()
+                        .and_then(|r| r.ok());
+                        
+                        if let Some(input) = input {
+                            let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
+                            if !cid.is_empty() {
+                                let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+                                cfg.google.client_id = cid;
+                                cfg.save().ok();
+                            }
                         }
-                    }
+                    });
                 }
                 "pause" => {
                     let state = app.state::<AppState>();
@@ -309,10 +323,18 @@ async fn get_client_id(app: &tauri::AppHandle<Wry>) -> String {
             return cfg.google.client_id;
         }
     }
-    if let Ok(input) = std::process::Command::new("zenity")
-        .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
-        .output()
-    {
+    
+    // Envolver chamada síncrona em spawn_blocking
+    let input = tokio::task::spawn_blocking(|| {
+        std::process::Command::new("zenity")
+            .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
+            .output()
+    })
+    .await
+    .ok()
+    .and_then(|r| r.ok());
+    
+    if let Some(input) = input {
         let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
         if !cid.is_empty() {
             let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
@@ -346,7 +368,13 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     let auth_url = session.authorization_url(redirect_uri);
     let server = CallbackServer::new().with_timeout(std::time::Duration::from_secs(300));
 
-    open::that(&auth_url).map_err(|_| "Erro ao abrir navegador".to_string())?;
+    // Envolver open::that em spawn_blocking para não bloquear o runtime
+    let url_clone = auth_url.clone();
+    tokio::task::spawn_blocking(move || {
+        let _ = open::that(&url_clone);
+    })
+    .await
+    .ok();
 
     let cb = server.wait_for_callback(&session.state).await
         .map_err(|e| format!("Callback: {}", e))?;

@@ -118,13 +118,25 @@ async fn main() {
                             }
                         }
                         Err(e) => {
-                            eprintln!("[sync] ERRO detect_changes: {}", e);
-                            let _ = notify_rust::Notification::new()
-                                .summary("LibreSync")
-                                .body(&format!("Erro ao detectar mudanças: {}", e))
-                                .icon("dialog-error")
-                                .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                .show();
+                            let error_msg = format!("{}", e);
+                            eprintln!("[sync] ERRO detect_changes: {}", error_msg);
+                            
+                            // Se for erro de autenticação (401), notificar o usuário
+                            if error_msg.contains("401") || error_msg.contains("Unauthorized") {
+                                let _ = notify_rust::Notification::new()
+                                    .summary("LibreSync")
+                                    .body("Token expirado. Faça login novamente pelo menu do tray.")
+                                    .icon("dialog-error")
+                                    .timeout(notify_rust::Timeout::Milliseconds(10000))
+                                    .show();
+                            } else {
+                                let _ = notify_rust::Notification::new()
+                                    .summary("LibreSync")
+                                    .body(&format!("Erro ao detectar mudanças: {}", e))
+                                    .icon("dialog-error")
+                                    .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                    .show();
+                            }
                         }
                     }
                 }
