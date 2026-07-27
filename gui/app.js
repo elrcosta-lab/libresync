@@ -243,6 +243,7 @@ async function loadSettings() {
     const s = await getSettingsCmd();
     $('#settings-sync-folder').value = s.sync_folder || '';
     $('#settings-client-id').value = s.client_id || '';
+    $('#settings-client-secret').value = s.client_secret || '';
     $('#settings-bandwidth').value = s.bandwidth_limit || '';
     $('#settings-autostart').checked = s.auto_start || false;
     $('#settings-polling').value = s.polling_interval || 30;
@@ -257,6 +258,7 @@ async function saveSettings() {
   const settings = {
     sync_folder: $('#settings-sync-folder').value,
     client_id: $('#settings-client-id').value,
+    client_secret: $('#settings-client-secret').value,
     bandwidth_limit: parseInt($('#settings-bandwidth').value) || 0,
     auto_start: $('#settings-autostart').checked,
     polling_interval: parseInt($('#settings-polling').value) || 30,
@@ -376,10 +378,18 @@ function escapeHtml(str) {
 
 // --- INIT ---
 
+function getScreenName(screen) {
+  // serde serializa unit variants como string ("Login")
+  // e struct variants como objeto ({"Onboarding": {"step": 1}})
+  if (typeof screen === 'string') return screen;
+  if (screen && typeof screen === 'object') return Object.keys(screen)[0] || '';
+  return '';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const state = await getState();
-    if (state.screen === 'Onboarding') {
+    if (getScreenName(state.screen) === 'Onboarding') {
       showWelcome();
       return;
     } else if (state.active_account) {

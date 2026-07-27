@@ -87,11 +87,16 @@ async fn update_settings(
     state: tauri::State<'_, AppState>,
     settings: UIConfig,
 ) -> Result<bool, String> {
-    // Save client_id to config.toml
+    // Save client_id and client_secret to config.toml
     if !settings.client_id.is_empty() {
         let mut config = libresync_core::config::LibreSyncConfig::load()
             .unwrap_or_default();
         config.google.client_id = settings.client_id.clone();
+        if let Some(ref secret) = settings.client_secret {
+            if !secret.is_empty() {
+                config.google.client_secret = Some(secret.clone());
+            }
+        }
         config.save().map_err(|e| format!("Erro ao salvar config: {}", e))?;
     }
     let mut ui = state.ui_state.lock().map_err(|e| e.to_string())?;
@@ -202,6 +207,12 @@ async fn complete_welcome(
     let mut ui = state.ui_state.lock().map_err(|e| e.to_string())?;
     if !client_id.is_empty() {
         ui.config.client_id = client_id;
+    }
+    // Reset screen so next window open shows Login/Dashboard, not Onboarding
+    if ui.accounts.is_empty() {
+        ui.set_screen(AppScreen::Login);
+    } else {
+        ui.set_screen(AppScreen::Main);
     }
 
     // Hide the window

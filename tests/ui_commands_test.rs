@@ -60,6 +60,7 @@ fn test_update_config_alters_state() {
     let mut state = make_state();
     let new_config = UIConfig {
         client_id: String::new(),
+        client_secret: None,
         sync_folder: String::new(),
         bandwidth_limit: 0,
         auto_start: false,

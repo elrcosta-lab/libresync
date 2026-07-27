@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UIConfig {
     pub client_id: String,
+    pub client_secret: Option<String>,
     pub sync_folder: String,
     pub bandwidth_limit: u64,
     pub auto_start: bool,
@@ -17,6 +18,7 @@ impl Default for UIConfig {
     fn default() -> Self {
         Self {
             client_id: String::new(),
+            client_secret: None,
             sync_folder: String::new(),
             bandwidth_limit: 0,
             auto_start: false,
