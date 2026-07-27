@@ -130,13 +130,14 @@ icons/
 ├── icon.png       Ícone do aplicativo (512×512)
 ├── icon-256.png   Ícone (256×256)
 ├── icon-128.png   Ícone (128×128)
+├── icon.ico       Ícone do aplicativo para Windows (multi-resolução)
 ├── tray.png       Ícone da bandeja (64×64)
 └── tray-32.png    Ícone da bandeja (32×32)
 resources/
 └── icons/
-    ├── icon.svg       Ícone vetorial
-    ├── icon.png       Ícone do app (256×256)
-    └── status/32x32/  Ícones de estado (synced, syncing, error, paused, offline)
+    ├── icon.png            Ícone do app (256×256)
+    ├── libresync-1024.png  Fonte do ícone (1024×1024)
+    └── status/32x32/     Ícones de estado (synced, syncing, error, paused, offline)
 ```
 
 ## Configuração

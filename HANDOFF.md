@@ -34,10 +34,10 @@
 - **Documentação** — README, PRD v1.1, 6 specs
 
 ### Ícone personalizado
-- **Ícone principal** — 512×512 PNG com design moderno (setas de sync verde + azul em gradiente azul escuro)
-- **Ícone tray** — 64×64 e 32×32 para system tray
+- **Fonte** — `resources/icons/libresync-1024.png` (1024×1024), Tux + triângulo estilo Google Drive + setas de sync
+- **Ícone principal** — `icons/icon.png` (512×512) e variações 256×256, 128×128
+- **Ícone tray** — 64×64 e 32×32
 - **Status icons** — 5 ícones de estado (synced/syncing/error/paused/offline) em `resources/icons/status/32x32/`
-- **SVG vetorial** — `resources/icons/icon.svg` para escalabilidade
 
 ### Segurança
 - **LibreSync/ adicionado ao .gitignore** — evita novos vazamentos
