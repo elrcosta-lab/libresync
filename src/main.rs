@@ -87,11 +87,11 @@ async fn main() {
 
     if is_tray && !is_cli {
         println!("Starting LibreSync in tray mode...");
-        let engine = std::sync::Arc::new(tokio::sync::Mutex::new(Some(engine)));
+        let engine = Arc::new(tokio::sync::Mutex::new(Some(engine)));
         
-        // Spawn sync loop as async task
+        // Spawn sync loop using tauri's async runtime
         let eng = engine.clone();
-        tokio::spawn(async move {
+        let sync_handle = tauri::async_runtime::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 let mut e = eng.lock().await;
@@ -133,6 +133,9 @@ async fn main() {
         });
         
         tray_app::run_tray(engine, AppUiState::new());
+        
+        // Keep the sync task alive
+        let _ = sync_handle.await;
     } else {
         run_cli(engine, &config, &sync_dir_str).await;
     }
