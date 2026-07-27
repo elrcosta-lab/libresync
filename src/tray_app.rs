@@ -40,7 +40,7 @@ fn update_tray(tray: &TrayIcon<Wry>, ui: &AppUiState) {
 
 pub struct AppState {
     #[allow(dead_code)]
-    pub engine: Arc<Mutex<Option<SyncEngine>>>,
+    pub engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>,
     pub ui_state: Mutex<AppUiState>,
 }
 
@@ -165,58 +165,11 @@ async fn logout(
     Ok(true)
 }
 
-pub fn run_tray(engine: SyncEngine, ui_state: AppUiState) {
-    let engine = Arc::new(Mutex::new(Some(engine)));
+pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: AppUiState) {
     let state = AppState {
         engine: engine.clone(),
         ui_state: Mutex::new(ui_state),
     };
-
-    // Background sync loop
-    let eng = engine.clone();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-                if let Ok(mut e) = eng.lock() {
-                    if let Some(ref mut engine) = *e {
-                        println!("[sync] Iniciando detect_changes...");
-                        match engine.detect_changes().await {
-                            Ok(()) => {
-                                let queue_len = engine.queue_len();
-                                println!("[sync] detect_changes OK, {} jobs na fila", queue_len);
-                                if queue_len > 0 {
-                                    println!("[sync] Processando fila...");
-                                    match engine.process_queue().await {
-                                        Ok(()) => println!("[sync] process_queue OK"),
-                                        Err(e) => {
-                                            eprintln!("[sync] ERRO process_queue: {}", e);
-                                            let _ = notify_rust::Notification::new()
-                                                .summary("LibreSync")
-                                                .body(&format!("Erro ao processar sync: {}", e))
-                                                .icon("dialog-error")
-                                                .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                                .show();
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("[sync] ERRO detect_changes: {}", e);
-                                let _ = notify_rust::Notification::new()
-                                    .summary("LibreSync")
-                                    .body(&format!("Erro ao detectar mudanças: {}", e))
-                                    .icon("dialog-error")
-                                    .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                    .show();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    });
 
     tauri::Builder::default()
         .manage(state)
@@ -380,7 +333,7 @@ async fn get_client_id(app: &tauri::AppHandle<Wry>) -> String {
     String::new()
 }
 
-async fn do_oauth_flow(client_id: &str, engine: &Arc<Mutex<Option<SyncEngine>>>) -> Result<(), String> {
+async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<SyncEngine>>>) -> Result<(), String> {
     use libresync_core::auth::provider::GoogleAuthProvider;
     use libresync_core::auth::server::CallbackServer;
     use libresync_core::auth::session::PkceSession;
@@ -421,7 +374,7 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<Mutex<Option<SyncEngine>>>)
     let new_engine = SyncEngine::new(drive_api, sync_config, &sync_dir, db);
 
     // Replace engine in global state with real credentials
-    let mut eng = engine.lock().unwrap();
+    let mut eng = engine.lock().await;
     *eng = Some(new_engine);
     drop(eng);
 

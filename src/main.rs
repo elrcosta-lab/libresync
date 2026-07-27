@@ -87,6 +87,51 @@ async fn main() {
 
     if is_tray && !is_cli {
         println!("Starting LibreSync in tray mode...");
+        let engine = std::sync::Arc::new(tokio::sync::Mutex::new(Some(engine)));
+        
+        // Spawn sync loop as async task
+        let eng = engine.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                let mut e = eng.lock().await;
+                if let Some(ref mut engine) = *e {
+                    println!("[sync] Iniciando detect_changes...");
+                    match engine.detect_changes().await {
+                        Ok(()) => {
+                            let queue_len = engine.queue_len();
+                            println!("[sync] detect_changes OK, {} jobs na fila", queue_len);
+                            if queue_len > 0 {
+                                println!("[sync] Processando fila...");
+                                match engine.process_queue().await {
+                                    Ok(()) => println!("[sync] process_queue OK"),
+                                    Err(e) => {
+                                        eprintln!("[sync] ERRO process_queue: {}", e);
+                                        let _ = notify_rust::Notification::new()
+                                            .summary("LibreSync")
+                                            .body(&format!("Erro ao processar sync: {}", e))
+                                            .icon("dialog-error")
+                                            .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                            .show();
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[sync] ERRO detect_changes: {}", e);
+                            let _ = notify_rust::Notification::new()
+                                .summary("LibreSync")
+                                .body(&format!("Erro ao detectar mudanças: {}", e))
+                                .icon("dialog-error")
+                                .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                .show();
+                        }
+                    }
+                }
+                drop(e);
+            }
+        });
+        
         tray_app::run_tray(engine, AppUiState::new());
     } else {
         run_cli(engine, &config, &sync_dir_str).await;

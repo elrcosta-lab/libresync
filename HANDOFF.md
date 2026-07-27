@@ -59,6 +59,42 @@
 
 **Arquivos alterados:** `tauri.conf.json`, `gui/app.js`
 
+### ✅ Logging estruturado para diagnóstico
+**Problema:** Os erros no loop de background do tray estavam sendo engolidos (`let _ = ...`), tornando impossível diagnosticar problemas em runtime.
+
+**Correção:**
+- Adicionados logs no loop de background (`tray_app.rs`) para rastrear `detect_changes()` e `process_queue()`.
+- Adicionados logs em `detect_changes()` para mostrar quantos arquivos foram listados.
+- Adicionados logs em `handle_download_job()` e `write_downloaded_file()` para rastrear downloads.
+- Adicionados logs em `list_files()` do DriveApiClient para ver respostas da API.
+- Adicionadas notificações desktop para erros críticos no sync.
+
+**Arquivos alterados:** `src/tray_app.rs`, `src/sync/engine.rs`, `src/drive/client.rs`
+
+---
+
+## Pendências Ativas
+
+### 🔍 Sync não popula a pasta (investigação em andamento)
+Apesar das correções anteriores, o sync ainda não está populando a pasta no ambiente real. Os logs adicionados permitirão diagnosticar o problema:
+
+**Como diagnosticar:**
+1. Instale o .deb: `sudo dpkg -i libresync_0.1.0_amd64.deb`
+2. Execute no terminal: `libresync-core --tray`
+3. Observe os logs no terminal:
+   - `[list_files]` — quantos arquivos a API retorna
+   - `[detect_changes]` — quantos arquivos foram encontrados
+   - `[handle_download_job]` — quais arquivos estão sendo baixados
+   - `[write_downloaded_file]` — confirmação de escrita no disco
+4. Se houver erros, serão mostrados no terminal e como notificação desktop
+
+**Possíveis causas a investigar:**
+- Token OAuth2 expirado ou inválido
+- Escopo OAuth2 não inclui acesso aos arquivos
+- `list_files()` retorna 0 arquivos (Drive vazio ou filtro incorreto)
+- Erros de permissão no `sync_dir`
+- Erros de rede silenciosos
+
 ---
 
 ## Como usar
