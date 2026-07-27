@@ -202,12 +202,14 @@ pub fn run_tray(engine: SyncEngine, ui_state: AppUiState) {
 
 fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
     let login = MenuItemBuilder::with_id("login", "Conectar conta Google").build(app)?;
+    let config_id = MenuItemBuilder::with_id("config_id", "Configurar Client ID").build(app)?;
     let pause = MenuItemBuilder::with_id("pause", "Pause Sync").build(app)?;
     let preferences = MenuItemBuilder::with_id("preferences", "Preferences").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit LibreSync").build(app)?;
 
     let menu = MenuBuilder::new(app)
         .item(&login)
+        .item(&config_id)
         .separator()
         .item(&pause)
         .item(&preferences)
@@ -228,7 +230,7 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
             match id.as_ref() {
                 "login" => {
                     let mut client_id = String::new();
-                    // Try UI state first
+                    // Try UI state
                     let state = app.state::<AppState>();
                     if let Ok(ui) = state.ui_state.lock() {
                         if !ui.config.client_id.is_empty() {
@@ -236,24 +238,40 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                         }
                     }
                     drop(state);
-                    // Then env var
+                    // Try env var
                     if client_id.is_empty() {
                         if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
                             client_id = id;
                         }
                     }
-                    // Then config file
+                    // Try config file
                     if client_id.is_empty() {
                         if let Ok(cfg) = libresync_core::config::LibreSyncConfig::load() {
                             client_id = cfg.google.client_id;
                         }
                     }
+                    // If still empty, prompt user
+                    if client_id.is_empty() {
+                        if let Ok(input) = std::process::Command::new("zenity")
+                            .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
+                            .output()
+                        {
+                            let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
+                            if !cid.is_empty() {
+                                client_id = cid;
+                                // Save to config
+                                let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+                                cfg.google.client_id = client_id.clone();
+                                cfg.save().ok();
+                            }
+                        }
+                    }
                     if client_id.is_empty() {
                         let _ = notify_rust::Notification::new()
                             .summary("LibreSync")
-                            .body("GOOGLE_CLIENT_ID não configurado.\nVá em Configurações > Google Client ID e cole seu ID.")
+                            .body("GOOGLE_CLIENT_ID não configurado.\nExecute no terminal: export GOOGLE_CLIENT_ID=seu_id")
                             .icon("dialog-error")
-                            .timeout(notify_rust::Timeout::Milliseconds(5000))
+                            .timeout(notify_rust::Timeout::Milliseconds(8000))
                             .show();
                         return;
                     }
@@ -262,6 +280,19 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                         client_id
                     );
                     let _ = open::that(&url);
+                }
+                "config_id" => {
+                    if let Ok(input) = std::process::Command::new("zenity")
+                        .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
+                        .output()
+                    {
+                        let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
+                        if !cid.is_empty() {
+                            let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+                            cfg.google.client_id = cid;
+                            cfg.save().ok();
+                        }
+                    }
                 }
                 "pause" => {
                     let state = app.state::<AppState>();
