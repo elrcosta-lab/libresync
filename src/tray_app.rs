@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::image::Image;
@@ -40,7 +40,7 @@ fn update_tray(tray: &TrayIcon<Wry>, ui: &AppUiState) {
 
 pub struct AppState {
     #[allow(dead_code)]
-    pub engine: Mutex<Option<SyncEngine>>,
+    pub engine: Arc<Mutex<Option<SyncEngine>>>,
     pub ui_state: Mutex<AppUiState>,
 }
 
@@ -166,10 +166,28 @@ async fn logout(
 }
 
 pub fn run_tray(engine: SyncEngine, ui_state: AppUiState) {
+    let engine = Arc::new(Mutex::new(Some(engine)));
     let state = AppState {
-        engine: Mutex::new(Some(engine)),
+        engine: engine.clone(),
         ui_state: Mutex::new(ui_state),
     };
+
+    // Background sync loop
+    let eng = engine.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                if let Ok(mut e) = eng.lock() {
+                    if let Some(ref mut engine) = *e {
+                        let _ = engine.detect_changes().await;
+                        let _ = engine.process_queue().await;
+                    }
+                }
+            }
+        });
+    });
 
     tauri::Builder::default()
         .manage(state)
