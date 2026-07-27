@@ -230,17 +230,14 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
             match id.as_ref() {
                 "login" => {
                     let handle = app.clone();
-                    let _ = std::thread::spawn(move || {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            let cid = get_client_id(&handle).await;
-                            if cid.is_empty() { return; }
-                            let eng = {
-                                let state = handle.state::<AppState>();
-                                state.engine.clone()
-                            };
-                            do_oauth_flow(&cid, &eng).await.ok();
-                        });
+                    tauri::async_runtime::spawn(async move {
+                        let cid = get_client_id(&handle).await;
+                        if cid.is_empty() { return; }
+                        let eng = {
+                            let state = handle.state::<AppState>();
+                            state.engine.clone()
+                        };
+                        do_oauth_flow(&cid, &eng).await.ok();
                     });
                 }
                 "config_id" => {
