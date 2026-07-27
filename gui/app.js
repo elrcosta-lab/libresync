@@ -1,6 +1,38 @@
-// Tauri IPC — raw bridge (funciona sem bundler em Tauri 2.x)
-const TAURI_INTERNALS = window.__TAURI_INTERNALS__;
-const invoke = TAURI_INTERNALS?.invoke || (() => { throw new Error('Tauri IPC not available'); });
+// Raw Tauri IPC v2 (works without bundler, uses __TAURI_INTERNALS__)
+let _callId = 0;
+const _pending = {};
+
+window.addEventListener('message', (e) => {
+  const { callback, error, data } = e.data || {};
+  if (callback && _pending[callback]) {
+    _pending[callback](data);
+    delete _pending[callback];
+  }
+  if (error && _pending[error]) {
+    _pending[error](data);
+    delete _pending[error];
+  }
+});
+
+async function invoke(cmd, args = {}) {
+  const internals = window.__TAURI_INTERNALS__;
+  if (!internals || !internals.postMessage) {
+    throw new Error('Tauri IPC not available');
+  }
+  return new Promise((resolve, reject) => {
+    const cid = ++_callId;
+    const callback = `_${cid}`;
+    const error = `_e${cid}`;
+    _pending[callback] = resolve;
+    _pending[error] = reject;
+    internals.postMessage({
+      cmd: 'invoke',
+      callback,
+      error,
+      message: { cmd, args }
+    });
+  });
+}
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
