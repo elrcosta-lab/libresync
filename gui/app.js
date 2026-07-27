@@ -17,7 +17,7 @@ window.addEventListener('message', (e) => {
 async function invoke(cmd, args = {}) {
   const internals = window.__TAURI_INTERNALS__;
   if (!internals || !internals.postMessage) {
-    throw new Error('Tauri IPC not available');
+    throw new Error('Tauri IPC não disponível');
   }
   return new Promise((resolve, reject) => {
     const cid = ++_callId;
@@ -31,6 +31,12 @@ async function invoke(cmd, args = {}) {
       error,
       message: { cmd, args }
     });
+    // Timeout de 5s — se backend não responder, rejeita
+    setTimeout(() => {
+      delete _pending[callback];
+      delete _pending[error];
+      reject(new Error(`IPC timeout: ${cmd}`));
+    }, 5000);
   });
 }
 
