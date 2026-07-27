@@ -472,7 +472,7 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     println!("[oauth] Tokens salvos em config.toml");
 
     println!("[oauth] Criando novo DriveApiClient...");
-    let auth = Arc::new(GoogleAuthProvider::new());
+    let auth = Arc::new(provider);
     let drive_api: Arc<dyn DriveApi> = Arc::new(DriveApiClient::new(auth, client_id, &rt));
     let sync_config = SyncConfig::default();
     let sync_dir = cfg.sync.local_dir.to_string_lossy().to_string();
