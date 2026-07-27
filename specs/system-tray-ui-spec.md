@@ -90,7 +90,9 @@ Este documento especifica os componentes **System Tray** (ícone na bandeja do s
 | RF-TRAY-06 | Clicar no ícone da tray deve abrir/focar a janela principal | Must | Evento de clique (esquerdo) dispara `show_window` |
 | RF-TRAY-07 | O item "Pausar/Retomar" deve alternar o texto conforme o estado atual | Must | Exibindo "Pausar" quando sincronizando, "Retomar" quando pausado |
 | RF-TRAY-08 | O item "Sair" deve encerrar completamente o processo (janela + tray) | Must | O processo termina, ícone desaparece |
-| RF-TRAY-09 | A tray deve suportar atalhos de teclado: nenhum no MVP, mas o menu pode ser acessado via botão direito do mouse | Could | Menu aparece ao clicar com botão direito |
+| RF-TRAY-09 | Os itens "Boas-vindas" e "Preferências" devem abrir a tela correspondente | Must | Tray seta `AppScreen::Onboarding` ou `AppScreen::Preferences` e o frontend a exibe ao tornar-se visível |
+| RF-TRAY-10 | A janela reutilizada deve sincronizar a tela com o backend ao tornar-se visível | Must | Listener `visibilitychange` chama `getState()` e navega para a tela correta quando `document.visibilityState === 'visible'` |
+| RF-TRAY-11 | A tray deve suportar atalhos de teclado: nenhum no MVP, mas o menu pode ser acessado via botão direito do mouse | Could | Menu aparece ao clicar com botão direito |
 
 ### 6.2 Notificações Desktop
 
@@ -243,30 +245,28 @@ pub struct AppState {
 pub fn create_tray(app: &AppHandle, state: &AppState) -> TrayHandle {
     let icon = load_icon_for_state(SyncState::Idle); // ícone branco (offline inicial)
 
-    let mut menu = Menu::new();
     let status_item = MenuItemBuilder::new("LibreSync — Inicializando...")
         .disabled(true)
         .build();
-    let open_item = MenuItemBuilder::new("Abrir LibreSync")
-        .accelerator("CmdOrCtrl+Shift+L")
-        .build();
-    let pause_item = MenuItemBuilder::new("Pausar sincronização")
-        .accelerator("CmdOrCtrl+Shift+P")
-        .build();
-    let prefs_item = MenuItemBuilder::new("Preferências")
-        .accelerator("CmdOrCtrl+,")
-        .build();
-    let quit_item = MenuItemBuilder::new("Sair")
-        .accelerator("CmdOrCtrl+Q")
-        .build();
+    let connect_item = MenuItemBuilder::with_id("connect", "Conectar conta Google").build(app)?;
+    let client_id_item = MenuItemBuilder::with_id("client_id", "Configurar Client ID").build(app)?;
+    let client_secret_item = MenuItemBuilder::with_id("client_secret", "Configurar Client Secret").build(app)?;
+    let welcome_item = MenuItemBuilder::with_id("welcome", "Boas-vindas").build(app)?;
+    let pause_item = MenuItemBuilder::with_id("pause", "Pausar sincronização").build(app)?;
+    let prefs_item = MenuItemBuilder::with_id("preferences", "Preferências").build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", "Sair").build(app)?;
 
     let menu = Menu::with_items([
         &status_item,
         &NativeMenuItem::separator(),
-        &open_item,
-        &pause_item,
+        &connect_item,
+        &client_id_item,
+        &client_secret_item,
+        &welcome_item,
         &NativeMenuItem::separator(),
+        &pause_item,
         &prefs_item,
+        &NativeMenuItem::separator(),
         &quit_item,
     ]);
 
@@ -275,10 +275,21 @@ pub fn create_tray(app: &AppHandle, state: &AppState) -> TrayHandle {
 
     // Event handlers
     tray.on_menu_event(move |app, event| {
+        let state = app.state::<AppState>();
+        let mut ui = state.ui_state.lock().unwrap();
         match event.id.as_ref() {
-            "open" => show_main_window(app),
-            "pause" => toggle_pause(app, state),
-            "prefs" => show_preferences_window(app),
+            "connect" => trigger_oauth_login(app),
+            "client_id" => configure_client_id(app),
+            "client_secret" => configure_client_secret(app),
+            "welcome" => {
+                ui.set_screen(AppScreen::Onboarding { step: 1 });
+                show_webview_window(app);
+            }
+            "pause" => ui.toggle_pause(),
+            "preferences" => {
+                ui.set_screen(AppScreen::Preferences);
+                show_webview_window(app);
+            }
             "quit" => quit_app(app),
             _ => {}
         }
@@ -293,6 +304,37 @@ pub fn create_tray(app: &AppHandle, state: &AppState) -> TrayHandle {
     tray
 }
 ```
+
+**Sincronização de tela ao reexibir a janela:**
+
+Como a janela é criada oculta (`"visible": false` em `tauri.conf.json`) e reutilizada, `DOMContentLoaded` só dispara uma vez. Se o backend altera `AppScreen` via menu da tray, o frontend precisa ser avisado quando a janela reaparecer.
+
+Implementação no frontend (`gui/app.js`):
+
+```js
+async function syncScreenFromBackend() {
+  const state = await getState();
+  const screen = getScreenName(state.screen);
+  if (screen === 'Onboarding') showWelcome();
+  else if (screen === 'Preferences') showSettings();
+  else if (screen === 'Main') {
+    if (state.active_account || (state.accounts && state.accounts.length > 0)) {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await syncScreenFromBackend();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncScreenFromBackend();
+  });
+});
+```
+
+O listener `visibilitychange` garante que toda vez que o usuário abrir a janela pelo tray, a tela exibida será a mesma definida no backend.
 
 **Ícones por estado:**
 

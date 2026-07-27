@@ -119,6 +119,17 @@
 - Loop implementado sobre `nextPageToken` até listar todos os arquivos do Drive
 - Logs informativos por página e total
 
+### ✅ Tray abrindo tela errada (Boas-vindas → Configurações)
+**Problema:** Clicar no tray → **Boas-vindas** abria a tela de **Configurações** em vez da boas-vindas. O handler de preferências nem sequer setava a tela correta.
+
+**Causa raiz:** O frontend só lia `state.screen` uma vez durante `DOMContentLoaded`. Como a janela é criada oculta e reutilizada, `DOMContentLoaded` não disparava novamente ao reabrir; o frontend continuava na última tela exibida.
+
+**Correção:**
+- Handler "welcome" do tray já setava `AppScreen::Onboarding` — backend estava correto
+- Handler "preferences" do tray agora seta `AppScreen::Preferences`
+- `gui/app.js`: adicionado listener `visibilitychange` que chama `syncScreenFromBackend()` toda vez que a janela se torna visível
+- `syncScreenFromBackend()` reconsulta o backend e navega para a tela correta (Onboarding, Preferences, Main/Login)
+
 ---
 
 ## Pendências Ativas
