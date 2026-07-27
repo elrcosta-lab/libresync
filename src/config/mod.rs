@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct LibreSyncConfig {
     pub google: GoogleConfig,
     pub sync: SyncSettings,
+    #[serde(default = "default_true")]
+    pub first_run: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +56,7 @@ impl Default for LibreSyncConfig {
                 poll_interval_secs: 30,
                 auto_start: true,
             },
+            first_run: true,
         }
     }
 }

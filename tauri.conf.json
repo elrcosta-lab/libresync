@@ -10,9 +10,9 @@
     "windows": [
       {
         "title": "LibreSync",
-        "width": 480,
-        "height": 320,
-        "resizable": false,
+        "width": 580,
+        "height": 580,
+        "resizable": true,
         "decorations": true,
         "visible": false
       }

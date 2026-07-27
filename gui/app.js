@@ -81,6 +81,10 @@ function showSettings() {
   document.getElementById('settings-feedback')?.classList.add('hidden');
 }
 
+function showWelcome() {
+  showScreen('welcome');
+}
+
 // --- LOGIN ---
 
 async function loadAccounts() {
@@ -300,6 +304,32 @@ async function getSettingsCmd() {
   return await invoke('get_settings');
 }
 
+async function completeWelcome() {
+  showLoading(true);
+  try {
+    const clientId = document.getElementById('welcome-client-id').value.trim();
+    const clientSecret = document.getElementById('welcome-client-secret').value.trim();
+    await invoke('complete_welcome', { clientId, clientSecret });
+    const state = await getState();
+    if (state.active_account) {
+      showDashboard();
+      startPolling();
+    } else if (state.accounts && state.accounts.length > 0) {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+    showNotification('Configuração salva! Use o tray → Conectar conta Google.', 'success');
+  } catch (e) {
+    showNotification('Erro ao salvar: ' + e, 'error');
+  }
+  showLoading(false);
+}
+
+function openUrl(url) {
+  window.open(url, '_blank');
+}
+
 async function login() {
   showLoading(true);
   try {
@@ -346,6 +376,22 @@ function escapeHtml(str) {
 
 // --- INIT ---
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const state = await getState();
+    if (state.screen === 'Onboarding') {
+      showWelcome();
+      return;
+    } else if (state.active_account) {
+      showDashboard();
+      startPolling();
+      return;
+    } else if (state.accounts && state.accounts.length > 0) {
+      showDashboard();
+      return;
+    }
+  } catch (e) {
+    console.warn('getState no init, padrão login:', e);
+  }
   showLogin();
 });

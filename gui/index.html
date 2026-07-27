@@ -13,6 +13,68 @@
     <span class="header-version">v0.1.0</span>
   </div>
 
+  <!-- WELCOME / ONBOARDING -->
+  <div id="screen-welcome" class="screen hidden">
+    <div class="screen-header">
+      <h2>Bem-vindo!</h2>
+      <span class="badge badge-first">1ª vez</span>
+    </div>
+
+    <div class="welcome-hero">
+      <div class="welcome-icon">☁️</div>
+      <h1>LibreSync</h1>
+      <p class="welcome-sub">Sincronize seus arquivos do Google Drive<br>com o Linux de forma simples e segura.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-body">
+          <h3>Crie um projeto no Google Cloud</h3>
+          <p>Acesse o <a href="#" onclick="openUrl('https://console.cloud.google.com')">Google Cloud Console</a>, crie um projeto e ative a <strong>Google Drive API</strong>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-body">
+          <h3>Crie credenciais OAuth</h3>
+          <p>Vá em <strong>APIs & Services → Credentials → Create Credentials → OAuth client ID</strong>.</p>
+          <p>Tipo: <strong>Desktop application</strong></p>
+          <p>Redirect URI: <code>http://localhost:65432/callback</code></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-body">
+          <h3>Cole suas credenciais</h3>
+          <div class="form-group">
+            <label for="welcome-client-id">Client ID</label>
+            <input type="text" id="welcome-client-id" placeholder="Cole seu Client ID aqui">
+          </div>
+          <div class="form-group">
+            <label for="welcome-client-secret">Client Secret <span class="label-optional">(opcional)</span></label>
+            <input type="text" id="welcome-client-secret" placeholder="Cole seu Client Secret aqui">
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-body">
+          <h3>Conecte sua conta Google</h3>
+          <p>Após salvar, use o menu do tray → <strong>Conectar conta Google</strong> para autenticar e começar a sincronizar.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="welcome-actions">
+      <button class="btn btn-primary" onclick="completeWelcome()">✅ Concluir configuração</button>
+      <button class="btn btn-link" onclick="completeWelcome()">Pular, depois eu configuro</button>
+    </div>
+  </div>
+
   <!-- LOGIN -->
   <div id="screen-login" class="screen">
     <div class="screen-header">

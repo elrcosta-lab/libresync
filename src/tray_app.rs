@@ -12,7 +12,7 @@ use libresync_core::auth::session::PkceSession;
 use libresync_core::keyring::storage::TokenStorage;
 use libresync_core::sync::engine::SyncEngine;
 use libresync_core::ui::config::UIConfig;
-use libresync_core::ui::state::{AccountInfo, AppUiState, SyncActivity, SyncStatus};
+use libresync_core::ui::state::{AccountInfo, AppScreen, AppUiState, SyncActivity, SyncStatus};
 use libresync_core::ui::tray;
 
 const STATUS_ICONS: &[(&str, &[u8])] = &[
@@ -181,6 +181,37 @@ async fn logout(
     Ok(true)
 }
 
+#[tauri::command]
+async fn complete_welcome(
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle<Wry>,
+    client_id: String,
+    client_secret: String,
+) -> Result<bool, String> {
+    let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+    if !client_id.is_empty() {
+        cfg.google.client_id = client_id.clone();
+    }
+    if !client_secret.is_empty() {
+        cfg.google.client_secret = Some(client_secret);
+    }
+    cfg.first_run = false;
+    cfg.save().map_err(|e| format!("Erro ao salvar config: {}", e))?;
+
+    // Also update UIConfig so frontend reflects saved client_id
+    let mut ui = state.ui_state.lock().map_err(|e| e.to_string())?;
+    if !client_id.is_empty() {
+        ui.config.client_id = client_id;
+    }
+
+    // Hide the window
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.hide();
+    }
+
+    Ok(true)
+}
+
 pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: Arc<Mutex<AppUiState>>) {
     let state = AppState {
         engine: engine.clone(),
@@ -197,6 +228,7 @@ pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: A
             update_settings,
             login,
             logout,
+            complete_welcome,
         ])
         .setup(|app: &mut tauri::App<Wry>| {
             let handle = app.handle();
@@ -207,6 +239,35 @@ pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: A
                 update_tray(&tray, &ui);
             }
             handle.manage(TrayHolder(Mutex::new(Some(tray))));
+
+            // First-run detection: open welcome screen if first_run is true
+            let is_first_run = {
+                let cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+                cfg.first_run
+            };
+            if is_first_run {
+                let app_state = handle.state::<AppState>();
+                let mut ui = app_state.ui_state.lock().unwrap();
+                ui.set_screen(AppScreen::Onboarding { step: 1 });
+                drop(ui);
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+
+            // Window close handler: hide instead of closing
+            if let Some(window) = handle.get_webview_window("main") {
+                let h = handle.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        if let Some(w) = h.get_webview_window("main") {
+                            let _ = w.hide();
+                        }
+                    }
+                });
+            }
 
             // Spawn sync loop with access to app handle
             let handle_clone = handle.clone();
@@ -228,6 +289,7 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
     let login = MenuItemBuilder::with_id("login", "Conectar conta Google").build(app)?;
     let config_id = MenuItemBuilder::with_id("config_id", "Configurar Client ID").build(app)?;
     let config_secret = MenuItemBuilder::with_id("config_secret", "Configurar Client Secret").build(app)?;
+    let welcome = MenuItemBuilder::with_id("welcome", "Boas-vindas").build(app)?;
     let pause = MenuItemBuilder::with_id("pause", "Pause Sync").build(app)?;
     let preferences = MenuItemBuilder::with_id("preferences", "Preferences").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit LibreSync").build(app)?;
@@ -237,6 +299,7 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
         .item(&config_id)
         .item(&config_secret)
         .separator()
+        .item(&welcome)
         .item(&pause)
         .item(&preferences)
         .separator()
@@ -307,6 +370,16 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                             }
                         }
                     });
+                }
+                "welcome" => {
+                    let state = app.state::<AppState>();
+                    let mut ui = state.ui_state.lock().unwrap();
+                    ui.set_screen(AppScreen::Onboarding { step: 1 });
+                    drop(ui);
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
                 }
                 "pause" => {
                     let state = app.state::<AppState>();

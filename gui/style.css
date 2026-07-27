@@ -106,6 +106,29 @@ input[readonly]{opacity:.7;cursor:default}
 .notification.success{background:#388e3c;color:#fff}
 .notification.hidden{opacity:0;pointer-events:none}
 
+/* welcome / onboarding */
+.welcome-hero{text-align:center;padding:8px 0 12px}
+.welcome-icon{font-size:2.4rem;margin-bottom:4px}
+.welcome-hero h1{font-size:1.4rem;color:#0078d4;margin-bottom:4px}
+.welcome-sub{font-size:.85rem;color:#888;line-height:1.5}
+.badge-first{background:#0078d4;color:#fff;font-size:.7rem;padding:3px 10px;border-radius:10px;font-weight:600}
+
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:flex;gap:12px;background:#16213e;border-radius:10px;padding:14px}
+.step-number{flex-shrink:0;width:28px;height:28px;background:#0078d4;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700}
+.step-body{flex:1;min-width:0}
+.step-body h3{font-size:.9rem;font-weight:600;margin-bottom:4px}
+.step-body p{font-size:.82rem;color:#aaa;line-height:1.5;margin-bottom:4px}
+.step-body code{background:#0f3460;color:#4fc3f7;padding:2px 6px;border-radius:4px;font-size:.8rem;word-break:break-all}
+.step-body .form-group{margin-bottom:8px}
+.step-body .form-group:last-child{margin-bottom:0}
+.step-body .form-group label{font-size:.8rem;color:#aaa}
+.label-optional{color:#666;font-size:.75rem}
+
+.welcome-actions{display:flex;flex-direction:column;gap:8px;padding-top:4px}
+.welcome-actions .btn-link{background:0 0;border:none;color:#888;font-size:.82rem;cursor:pointer;padding:6px;text-align:center}
+.welcome-actions .btn-link:hover{color:#0078d4;text-decoration:underline}
+
 /* responsive */
 @media(max-width:480px){
   #app{padding:12px}
