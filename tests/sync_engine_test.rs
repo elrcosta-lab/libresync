@@ -23,6 +23,8 @@ struct StatefulMockDriveApi {
     files: Mutex<HashMap<String, FileEntry>>,
 }
 
+struct FailingListDriveApi;
+
 impl StatefulMockDriveApi {
     fn new() -> Self {
         Self {
@@ -116,6 +118,35 @@ impl DriveApi for StatefulMockDriveApi {
     }
 }
 
+#[async_trait]
+impl DriveApi for FailingListDriveApi {
+    async fn list_files(&self, _parent_id: Option<&str>) -> DriveResult<Vec<DriveFile>> {
+        Err(DriveError::Auth("HTTP 401 Unauthorized".into()))
+    }
+
+    async fn get_metadata(&self, file_id: &str) -> DriveResult<DriveFile> {
+        Err(DriveError::NotFound(file_id.to_string()))
+    }
+
+    async fn upload(
+        &self,
+        _name: &str,
+        _content: &[u8],
+        _mime_type: &str,
+        _parent_id: Option<&str>,
+    ) -> DriveResult<DriveFile> {
+        Err(DriveError::Auth("HTTP 401 Unauthorized".into()))
+    }
+
+    async fn download(&self, _file_id: &str) -> DriveResult<Vec<u8>> {
+        Err(DriveError::Auth("HTTP 401 Unauthorized".into()))
+    }
+
+    async fn delete(&self, _file_id: &str) -> DriveResult<()> {
+        Err(DriveError::Auth("HTTP 401 Unauthorized".into()))
+    }
+}
+
 fn create_engine_with_mock(mock: Arc<dyn DriveApi>) -> SyncEngine {
     let config = SyncConfig::default();
     SyncEngine::new(mock, config, "/tmp/libresync-test", None)
@@ -149,6 +180,17 @@ async fn test_detect_changes_no_errors() {
     let mut engine = create_test_engine();
     engine.detect_changes().await.unwrap();
     assert_eq!(engine.state().to_string(), "Queuing");
+}
+
+#[tokio::test]
+async fn test_detect_changes_failure_returns_to_idle() {
+    let mock = Arc::new(FailingListDriveApi);
+    let mut engine = create_engine_with_mock(mock);
+
+    let result = engine.detect_changes().await;
+
+    assert!(result.is_err());
+    assert_eq!(engine.state().to_string(), "Idle");
 }
 
 #[tokio::test]

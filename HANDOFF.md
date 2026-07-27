@@ -76,6 +76,16 @@
 
 **Arquivos alterados:** `src/main.rs`, `src/tray_app.rs`
 
+### ✅ State machine presa em Scanning após erro de listagem
+**Causa raiz:** Quando `detect_changes()` falhava em `drive_client.list_files()` (ex: `HTTP 401 Unauthorized`), a função retornava erro imediatamente e deixava a state machine em `Scanning`. No ciclo seguinte, o engine tentava iniciar outro scan com a transição `Scanning -> Scanning`, que é inválida.
+
+**Correção:**
+- `detect_changes()` agora transiciona `Scanning -> Error -> Idle` antes de retornar erro de listagem.
+- Adicionado teste de regressão `test_detect_changes_failure_returns_to_idle`.
+- Novo pacote `.deb` gerado após build release e suíte completa de testes.
+
+**Arquivos alterados:** `src/sync/engine.rs`, `tests/sync_engine_test.rs`
+
 ### ✅ O sync não está populando a pasta
 **Causa raiz (fase 1):** `SyncEngine::handle_download_job()` chamava `drive_client.download()` mas descartava os bytes retornados — nunca escrevia no arquivo local.
 

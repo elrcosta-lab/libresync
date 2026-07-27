@@ -94,11 +94,14 @@ impl SyncEngine {
         self.state_machine.transition(SyncState::Scanning)?;
 
         println!("[detect_changes] Listando arquivos remotos...");
-        let remote_files = self
-            .drive_client
-            .list_files(None)
-            .await
-            .map_err(|e| SyncError::EngineError(format!("list: {}", e)))?;
+        let remote_files = match self.drive_client.list_files(None).await {
+            Ok(files) => files,
+            Err(e) => {
+                let _ = self.state_machine.transition(SyncState::Error);
+                let _ = self.state_machine.transition(SyncState::Idle);
+                return Err(SyncError::EngineError(format!("list: {}", e)));
+            }
+        };
 
         println!("[detect_changes] {} arquivos remotos encontrados", remote_files.len());
 
