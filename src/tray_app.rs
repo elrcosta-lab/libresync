@@ -238,6 +238,12 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                     } else if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
                         id
                     } else {
+                        let _ = notify_rust::Notification::new()
+                            .summary("LibreSync")
+                            .body("GOOGLE_CLIENT_ID não configurado.\nVá em Configurações > Google Client ID e cole seu ID.")
+                            .icon("dialog-error")
+                            .timeout(notify_rust::Timeout::Milliseconds(5000))
+                            .show();
                         return;
                     };
                     let url = format!(
