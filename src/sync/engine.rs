@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::conflict::config::ConflictConfig;
@@ -22,6 +23,24 @@ pub struct SyncEngine {
     conflict_engine: ConflictEngine,
     #[allow(dead_code)]
     db: Option<Arc<Database>>,
+}
+
+const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
+
+fn resolve_remote_path(
+    parents: &Option<Vec<String>>,
+    file_name: &str,
+    folder_map: &HashMap<String, (String, Option<Vec<String>>)>,
+) -> String {
+    if let Some(parents_list) = parents {
+        if let Some(parent_id) = parents_list.first() {
+            if let Some((parent_name, parent_parents)) = folder_map.get(parent_id) {
+                let parent_path = resolve_remote_path(parent_parents, parent_name, folder_map);
+                return format!("{}/{}", parent_path, file_name);
+            }
+        }
+    }
+    file_name.to_string()
 }
 
 fn compute_local_hash(data: &[u8]) -> String {
@@ -111,10 +130,21 @@ impl SyncEngine {
 
         println!("[detect_changes] {} arquivos remotos encontrados", remote_files.len());
 
+        let mut folder_map: HashMap<String, (String, Option<Vec<String>>)> = HashMap::new();
+        for f in &remote_files {
+            if f.mime_type == FOLDER_MIME {
+                folder_map.insert(f.id.clone(), (f.name.clone(), f.parents.clone()));
+            }
+        }
+
         let mut queue = self.job_queue.lock().unwrap();
         for f in &remote_files {
-            println!("[detect_changes] Criando job download para '{}' (id: {})", f.name, f.id);
-            let job = SyncJob::new(&f.name, JobType::Download)
+            if f.mime_type == FOLDER_MIME {
+                continue;
+            }
+            let remote_path = resolve_remote_path(&f.parents, &f.name, &folder_map);
+            println!("[detect_changes] Criando job download para '{}' (path: {})", f.name, remote_path);
+            let job = SyncJob::new(&remote_path, JobType::Download)
                 .with_remote_file_id(&f.id);
             queue.enqueue(job);
         }
@@ -238,6 +268,27 @@ impl SyncEngine {
         Ok(())
     }
 
+    async fn resolve_remote_path_for_file(&self, parents: &Option<Vec<String>>, file_name: &str) -> String {
+        let mut segments: Vec<String> = vec![file_name.to_string()];
+        let mut current_parents = parents.clone();
+        loop {
+            match current_parents.as_ref().and_then(|p| p.first().cloned()) {
+                Some(parent_id) => {
+                    match self.drive_client.get_metadata(&parent_id).await {
+                        Ok(parent_meta) => {
+                            segments.push(parent_meta.name);
+                            current_parents = parent_meta.parents;
+                        }
+                        Err(_) => break,
+                    }
+                }
+                None => break,
+            }
+        }
+        segments.reverse();
+        segments.join("/")
+    }
+
     pub async fn on_remote_change(&mut self, file_id: &str) -> Result<(), SyncError> {
         let meta = self
             .drive_client
@@ -251,7 +302,8 @@ impl SyncEngine {
             .await
             .map_err(|e| SyncError::EngineError(format!("download: {}", e)))?;
 
-        let local_path = format!("{}/{}", self.sync_dir, meta.name);
+        let remote_path = self.resolve_remote_path_for_file(&meta.parents, &meta.name).await;
+        let local_path = format!("{}/{}", self.sync_dir, remote_path);
         if let Some(parent) = std::path::Path::new(&local_path).parent() {
             tokio::fs::create_dir_all(parent)
                 .await
@@ -261,7 +313,7 @@ impl SyncEngine {
             .await
             .map_err(|e| SyncError::EngineError(format!("write: {}", e)))?;
 
-        let job = SyncJob::new(&local_path, JobType::Download)
+        let job = SyncJob::new(&remote_path, JobType::Download)
             .with_remote_file_id(file_id);
         self.job_queue.lock().unwrap().enqueue(job);
         Ok(())
