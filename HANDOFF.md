@@ -135,25 +135,26 @@
 
 ## Pendências Ativas
 
-### 🔍 Sync não popula a pasta (investigação em andamento)
-Apesar das correções anteriores, o sync ainda não está populando a pasta no ambiente real. Os logs adicionados permitirão diagnosticar o problema:
+### 🔍 Token OAuth não é atualizado após login (investigação em andamento)
+**Problema:** O usuário faz login pelo tray, o OAuth parece funcionar (aparece "autorizado"), mas o engine continua usando o token antigo/expirado e retornando `HTTP 401 Unauthorized`.
 
-**Como diagnosticar:**
-1. Instale o .deb: `sudo dpkg -i libresync_0.1.0_amd64.deb`
-2. Execute no terminal: `libresync-core --tray`
-3. Observe os logs no terminal:
-   - `[list_files]` — quantos arquivos a API retorna
-   - `[detect_changes]` — quantos arquivos foram encontrados
-   - `[handle_download_job]` — quais arquivos estão sendo baixados
-   - `[write_downloaded_file]` — confirmação de escrita no disco
-4. Se houver erros, serão mostrados no terminal e como notificação desktop
+**Logs adicionados para diagnóstico:**
+- `[oauth]` — mostra quando token é obtido, salvo e engine é substituído
+- `[sync]` — mostra quando engine é atualizado (via pointer)
+- `[DriveApiClient]` — mostra client_id e refresh_token (primeiros 10 chars) usado na criação
 
-**Possíveis causas a investigar:**
-- Token OAuth2 expirado ou inválido
-- Escopo OAuth2 não inclui acesso aos arquivos
-- `list_files()` retorna 0 arquivos (Drive vazio ou filtro incorreto)
-- Erros de permissão no `sync_dir`
-- Erros de rede silenciosos
+**Próximos passos:**
+1. Instalar novo .deb com logs
+2. Executar `libresync-core --tray`
+3. Fazer login pelo tray
+4. Observar logs para identificar:
+   - Se `refresh_token` está sendo retornado pelo Google
+   - Se tokens estão sendo salvos no config.toml
+   - Se novo engine está sendo criado com credenciais corretas
+   - Se engine está sendo substituído no estado global
+   - Se loop de sync está usando o engine atualizado
+
+**Arquivos alterados:** `src/tray_app.rs`, `src/main.rs`, `src/drive/client.rs`
 
 ---
 
