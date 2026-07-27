@@ -36,6 +36,16 @@
 
 ## Pendências Resolvidas (última sessão)
 
+### ✅ Callback OAuth inicia antes de abrir navegador
+**Problema:** O navegador era aberto antes do servidor de callback estar garantidamente escutando, causando `ERR_CONNECTION_REFUSED` em `localhost:65432/callback`.
+
+**Correção:**
+- O servidor de callback agora é iniciado em uma task separada antes de abrir o navegador.
+- Adicionado pequeno delay (200ms) para garantir que o servidor esteja pronto.
+- O callback é aguardado via `JoinHandle` em vez de chamar `wait_for_callback()` diretamente.
+
+**Arquivos alterados:** `src/tray_app.rs`
+
 ### ✅ Panic de runtime aninhado no menu do tray
 **Causa raiz:** O handler do menu "login" estava criando um novo runtime Tokio com `std::thread::spawn()` + `Runtime::new()` + `block_on()` dentro do contexto do Tauri. Isso causava o panic "Cannot start a runtime from within a runtime".
 
