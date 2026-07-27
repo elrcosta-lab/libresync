@@ -375,6 +375,9 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     use libresync_core::sync::engine::SyncEngine;
     use std::sync::Arc;
 
+    println!("[oauth] Iniciando fluxo OAuth para client_id: {}...", 
+        if client_id.len() > 10 { &client_id[..10] } else { client_id });
+
     let session = PkceSession::new(client_id);
     let redirect_uri = "http://localhost:65432/callback";
     let auth_url = session.authorization_url(redirect_uri);
@@ -395,19 +398,29 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     .await
     .ok();
 
+    println!("[oauth] Aguardando callback...");
+
     let cb = callback_task
         .await
         .map_err(|e| format!("Callback task: {}", e))?
         .map_err(|e| format!("Callback: {}", e))?;
 
-    let provider = GoogleAuthProvider::new();
-    let token = provider.exchange_code(client_id, &cb.code, &session.code_verifier, redirect_uri)
-        .await.map_err(|e| format!("Token: {}", e))?;
+    println!("[oauth] Callback recebido, trocando código por token...");
 
+    let provider = GoogleAuthProvider::new();
+    println!("[oauth] Chamando exchange_code...");
+    let token = provider.exchange_code(client_id, &cb.code, &session.code_verifier, redirect_uri)
+        .await.map_err(|e| {
+            eprintln!("[oauth] ERRO exchange_code: {}", e);
+            format!("Token: {}", e)
+        })?;
+
+    println!("[oauth] exchange_code OK, extraindo refresh_token...");
     let rt = token.refresh_token.unwrap_or_default();
     println!("[oauth] Token obtido. refresh_token: {} chars", rt.len());
 
     if rt.is_empty() {
+        eprintln!("[oauth] ERRO: Google não retornou refresh_token");
         return Err("Google não retornou refresh_token. Verifique as permissões do OAuth.".to_string());
     }
 
@@ -418,15 +431,18 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     cfg.save().ok();
     println!("[oauth] Tokens salvos em config.toml");
 
+    println!("[oauth] Criando novo DriveApiClient...");
     let auth = Arc::new(GoogleAuthProvider::new());
     let drive_api: Arc<dyn DriveApi> = Arc::new(DriveApiClient::new(auth, client_id, &rt));
     let sync_config = SyncConfig::default();
     let sync_dir = cfg.sync.local_dir.to_string_lossy().to_string();
     let db = libresync_core::db::Database::open_default().ok().map(|d| Arc::new(d));
+    println!("[oauth] Criando novo SyncEngine...");
     let new_engine = SyncEngine::new(drive_api, sync_config, &sync_dir, db);
     println!("[oauth] Novo engine criado com credenciais reais");
 
     // Replace engine in global state with real credentials
+    println!("[oauth] Substituindo engine no estado global...");
     let mut eng = engine.lock().await;
     *eng = Some(new_engine);
     drop(eng);
