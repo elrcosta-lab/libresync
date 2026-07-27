@@ -7,15 +7,16 @@ Cliente nativo de sincronização com Google Drive para Linux.
 ## Funcionalidades
 
 - Sincronização bidirecional com Google Drive
-- Interface gráfica completa (configuração, login, monitoramento)
-- Autenticação OAuth2 com PKCE — sem senhas
-- Sistema tray com ícone de status dinâmico
+- Interface gráfica Tauri WebView (Login, Dashboard, Configurações, Boas-vindas)
+- Autenticação OAuth2 com PKCE + suporte a client_secret
+- System tray com ícone de status dinâmico (synced/syncing/error/paused/offline)
 - Notificações desktop (sync, conflitos, erros)
 - Armazenamento seguro de tokens (Linux Secret Service + AES-256-GCM)
 - Resolução automática de conflitos
 - Monitoramento de arquivos em tempo real (inotify)
 - Limitação de largura de banda
-- Múltiplas contas
+- Múltiplas contas Google
+- Tela de boas-vindas na primeira execução com passo a passo
 
 ## Instalação
 
@@ -39,23 +40,20 @@ cargo build --release
 
 ## Primeiros passos
 
+Na **primeira execução**, o LibreSync abre automaticamente uma janela de boas-vindas com o passo a passo:
+
 1. Crie um **OAuth 2.0 Client ID** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
    - Tipo: "Desktop application"
    - Redirect URI: `http://localhost:65432/callback`
 2. Ative a **Google Drive API** no mesmo projeto
-3. Execute o LibreSync:
-
-```bash
-libresync-core --tray
-```
-
-4. Clique com direito no ícone da bandeja → **Preferences**
-5. Vá em **Configurações** → cole seu **Google Client ID** → Salvar
-6. Volte → clique **"Conectar conta Google"**
-7. O navegador abre para autorização — faça login e autorize
-8. Pronto! A sincronização começa automaticamente
+3. Cole o **Client ID** (e opcionalmente o **Client Secret**) na tela de boas-vindas e clique em "Concluir configuração"
+4. Clique com direito no ícone da bandeja → **Conectar conta Google**
+5. O navegador abre para autorização — faça login e autorize
+6. Pronto! A sincronização começa automaticamente
 
 > **Tudo pela interface gráfica** — nenhum terminal necessário após a instalação.
+
+Se precisar rever as instruções, clique no tray → **Boas-vindas**.
 
 ## Uso
 
@@ -80,18 +78,36 @@ libresync-core --help
 
 | Tela | Descrição |
 |------|-----------|
-| **Login** | Conectar/conta Google, lista de contas |
+| **Boas-vindas** | Passo a passo para configurar credenciais Google (exibida na 1ª execução) |
+| **Login** | Conectar conta Google, lista de contas |
 | **Dashboard** | Status do sync, pause/resume, atividade recente, quota |
-| **Configurações** | Google Client ID, pasta de sync, banda, auto-start, polling |
+| **Configurações** | Client ID, Client Secret, pasta de sync, banda, auto-start, polling |
 
-A janela de configuração abre pelo menu do tray (Preferences) ou clicando no ícone.
+### Tray menu
+
+| Item | Descrição |
+|------|-----------|
+| Conectar conta Google | Inicia fluxo OAuth2 |
+| Configurar Client ID | Entrada via janela nativa (Zenity) |
+| Configurar Client Secret | Entrada via janela nativa (Zenity) |
+| **Boas-vindas** | Reabre o guia de configuração inicial |
+| Pause Sync | Pausa/retoma a sincronização |
+| Preferences | Abre a janela de configurações (WebView) |
+| Quit | Sai do aplicativo |
+
+O ícone do tray muda automaticamente conforme o estado:
+- 🟢 Verde: sincronizado
+- 🔵 Azul: sincronizando
+- 🔴 Vermelho: erro
+- ⚪ Cinza: pausado
+- ⬜ Branco: offline
 
 ## Estrutura do projeto
 
 ```
 src/
 ├── auth/          Autenticação OAuth2 + PKCE + callback server
-├── config/        Configuração TOML
+├── config/        Configuração TOML (client_id, client_secret, first_run, etc.)
 ├── conflict/      Detecção e resolução de conflitos
 ├── db/            Persistência SQLite
 ├── drive/         Cliente Google Drive API
@@ -99,39 +115,49 @@ src/
 ├── instance/      Lock de instância única
 ├── keyring/       Armazenamento seguro de tokens
 ├── notification/  Notificações desktop
-├── sync/          Motor de sincronização
+├── sync/          Motor de sincronização (state machine, job queue)
 ├── transfer/      Gerenciamento de transferências
-├── ui/            Modelos de estado e interface
+├── ui/            Modelos de estado e interface (AppScreen, SyncStatus, UIConfig)
 ├── watcher/       Monitoramento de arquivos
 ├── autostart.rs   Auto-start com o sistema
 ├── main.rs        Ponto de entrada
-└── tray_app.rs    App Tray (Tauri)
+└── tray_app.rs    App Tray (Tauri) — sync loop, OAuth, menu, ícone
 gui/
-├── index.html     Interface gráfica (Tauri WebView)
-├── app.js         Lógica da interface
-└── style.css      Tema escuro
+├── index.html     Interface gráfica (Tauri WebView) — 4 telas
+├── app.js         Lógica da interface (IPC, navegação, polling)
+└── style.css      Tema escuro responsivo
 ```
 
-## Variáveis de Ambiente
+## Configuração
+
+O arquivo de configuração fica em `~/.config/libresync/config.toml`:
+
+| Campo | Descrição |
+|-------|-----------|
+| `google.client_id` | Client ID do OAuth2 |
+| `google.client_secret` | Client Secret (opcional, melhora confiabilidade do token) |
+| `google.refresh_token` | Token de refresh (gerado automaticamente pelo login) |
+| `sync.local_dir` | Pasta de sincronização (default: `~/LibreSync`) |
+| `sync.poll_interval_secs` | Intervalo entre verificações remotas (default: 30s) |
+| `sync.auto_start` | Iniciar sincronização automaticamente (default: true) |
+| `first_run` | Flag de primeira execução (default: true) |
+
+### Variáveis de Ambiente
 
 | Variável | Descrição |
 |----------|-----------|
-| `GOOGLE_CLIENT_ID` | ID do cliente OAuth2 (fallback se não configurado na GUI) |
-| `GOOGLE_CLIENT_SECRET` | Segredo do cliente OAuth2 |
-| `GOOGLE_REFRESH_TOKEN` | Token de refresh (gerado automaticamente pelo login) |
+| `GOOGLE_CLIENT_ID` | Fallback se não configurado na GUI |
+| `GOOGLE_CLIENT_SECRET` | Fallback se não configurado na GUI |
+| `GOOGLE_REFRESH_TOKEN` | Token de refresh (útil para testes headless) |
 | `LIBRESYNC_BANDWIDTH_KBPS` | Limite de banda (0 = ilimitado) |
 
 ## Testes
 
 ```bash
-# Testes unitários completos
+# Testes unitários + integração
 cargo test
 
-# Testes de integração (requer credenciais Google reais)
-GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=... \
-  cargo test --features integration-test
-
-# Cobertura total: 51 testes unitários + 6 testes de integração
+# Cobertura total: 51 testes unitários + 52 testes de integração
 ```
 
 ## Pacote .deb
@@ -150,22 +176,30 @@ podman run --rm libresync-test libresync-core --help
 
 ## Troubleshooting
 
+### A tela de boas-vindas não aparece
+
+Se você já usou o LibreSync antes, o `first_run` no config.toml já está como `false`. Para testar novamente:
+
+```bash
+sed -i 's/first_run = false/first_run = true/' ~/.config/libresync/config.toml
+```
+
+Ou reabra pelo tray → **Boas-vindas**.
+
 ### Sincronização não está baixando arquivos
 
-Se a autenticação funciona mas a pasta de sync não é populada:
-
-1. **Verifique os logs:** execute `libresync-core` (modo terminal) para ver mensagens detalhadas
-2. **Token expirado ou inválido:** faça login novamente pelo tray → "Conectar conta Google"
-3. **Client ID incorreto:** verifique no tray → "Configurar Client ID" se o valor está correto
-4. **Arquivos vazios no Drive:** `detect_changes()` lista arquivos com `trashed=false` — se sua pasta do Drive está vazia, não há nada para baixar
-5. **Polling ativo:** o engine verifica mudanças remotas a cada 30s (padrão) — aguarde o ciclo
+1. **Verifique os logs:** execute `libresync-core` (modo terminal) para mensagens detalhadas
+2. **Token expirado:** faça login novamente pelo tray → "Conectar conta Google"
+3. **Client ID incorreto:** verifique no tray → "Configurar Client ID" ou nas Configurações
+4. **Pasta de sync:** o padrão é `~/LibreSync` (caminho absoluto)
 
 ### WebView não abre / IPC não funciona
 
-A interface gráfica (Preferences) depende do runtime Tauri. Se a janela não abrir:
+A interface gráfica (Preferences, Boas-vindas) depende do runtime Tauri. Se a janela não abrir:
 - Verifique se `libwebkit2gtk-4.1-dev` e `libgtk-3-dev` estão instalados
-- Execute `libresync-core --tray` diretamente no terminal para ver erros de inicialização
-- As ações principais (login, configurar Client ID, pause) funcionam pelo menu do tray mesmo sem WebView
+- Execute `libresync-core --tray` no terminal para ver erros de inicialização
+- As ações principais (login, configurar credenciais, pause) funcionam pelo menu do tray mesmo sem WebView
+- Fechar a janela com ✕ apenas a oculta — o app continua rodando no tray
 
 ## Licença
 
