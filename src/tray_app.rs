@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::image::Image;
@@ -11,7 +12,7 @@ use libresync_core::auth::session::PkceSession;
 use libresync_core::keyring::storage::TokenStorage;
 use libresync_core::sync::engine::SyncEngine;
 use libresync_core::ui::config::UIConfig;
-use libresync_core::ui::state::{AccountInfo, AppUiState, SyncActivity};
+use libresync_core::ui::state::{AccountInfo, AppUiState, SyncActivity, SyncStatus};
 use libresync_core::ui::tray;
 
 const STATUS_ICONS: &[(&str, &[u8])] = &[
@@ -41,7 +42,7 @@ fn update_tray(tray: &TrayIcon<Wry>, ui: &AppUiState) {
 pub struct AppState {
     #[allow(dead_code)]
     pub engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>,
-    pub ui_state: Mutex<AppUiState>,
+    pub ui_state: Arc<Mutex<AppUiState>>,
 }
 
 struct TrayHolder(Mutex<Option<TrayIcon<Wry>>>);
@@ -180,10 +181,10 @@ async fn logout(
     Ok(true)
 }
 
-pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: AppUiState) {
+pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: Arc<Mutex<AppUiState>>) {
     let state = AppState {
         engine: engine.clone(),
-        ui_state: Mutex::new(ui_state),
+        ui_state: ui_state.clone(),
     };
 
     tauri::Builder::default()
@@ -200,11 +201,19 @@ pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: A
         .setup(|app: &mut tauri::App<Wry>| {
             let handle = app.handle();
             let tray = build_tray(handle)?;
-            let app_state = handle.state::<AppState>();
-            let ui = app_state.ui_state.lock().unwrap();
-            update_tray(&tray, &ui);
-            drop(ui);
+            {
+                let app_state = handle.state::<AppState>();
+                let ui = app_state.ui_state.lock().unwrap();
+                update_tray(&tray, &ui);
+            }
             handle.manage(TrayHolder(Mutex::new(Some(tray))));
+
+            // Spawn sync loop with access to app handle
+            let handle_clone = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                sync_loop(handle_clone).await;
+            });
+
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -340,6 +349,117 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
     Ok(tray)
 }
 
+async fn sync_loop(handle: tauri::AppHandle<Wry>) {
+    let mut last_engine_id = 0usize;
+    loop {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+
+        let (engine, ui_state) = {
+            let app_state = handle.state::<AppState>();
+            (app_state.engine.clone(), app_state.ui_state.clone())
+        };
+
+        let mut eng_lock = engine.lock().await;
+
+        if let Some(ref mut engine) = *eng_lock {
+            let engine_ptr = engine as *const _ as usize;
+            if engine_ptr != last_engine_id {
+                println!("[sync] Engine atualizado (ptr: {})", engine_ptr);
+                last_engine_id = engine_ptr;
+            }
+
+            update_tray_with_status(&handle, SyncStatus::Syncing, &ui_state);
+
+            println!("[sync] Iniciando detect_changes...");
+            match engine.detect_changes().await {
+                Ok(()) => {
+                    let queue_len = engine.queue_len();
+                    println!("[sync] detect_changes OK, {} jobs na fila", queue_len);
+                    if queue_len > 0 {
+                        println!("[sync] Processando fila...");
+                        match engine.process_queue().await {
+                            Ok(()) => {
+                                println!("[sync] process_queue OK");
+                                update_tray_with_status(&handle, SyncStatus::Synced, &ui_state);
+                            }
+                            Err(e) => {
+                                eprintln!("[sync] ERRO process_queue: {}", e);
+                                update_tray_with_status(
+                                    &handle,
+                                    SyncStatus::Error(format!("{}", e)),
+                                    &ui_state,
+                                );
+                                let body = format!("Erro ao processar sync: {}", e);
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    let _ = notify_rust::Notification::new()
+                                        .summary("LibreSync")
+                                        .body(&body)
+                                        .icon("dialog-error")
+                                        .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                        .show();
+                                })
+                                .await;
+                            }
+                        }
+                    } else {
+                        update_tray_with_status(&handle, SyncStatus::Synced, &ui_state);
+                    }
+                }
+                Err(e) => {
+                    let error_msg = format!("{}", e);
+                    eprintln!("[sync] ERRO detect_changes: {}", error_msg);
+
+                    if error_msg.contains("401") || error_msg.contains("Unauthorized") {
+                        update_tray_with_status(
+                            &handle,
+                            SyncStatus::Error("Token expirado. Faça login novamente.".into()),
+                            &ui_state,
+                        );
+                        let _ = tokio::task::spawn_blocking(|| {
+                            let _ = notify_rust::Notification::new()
+                                .summary("LibreSync")
+                                .body("Token expirado. Faça login novamente pelo menu do tray.")
+                                .icon("dialog-error")
+                                .timeout(notify_rust::Timeout::Milliseconds(10000))
+                                .show();
+                        })
+                        .await;
+                    } else {
+                        update_tray_with_status(
+                            &handle,
+                            SyncStatus::Error(format!("{}", e)),
+                            &ui_state,
+                        );
+                        let body = format!("Erro ao detectar mudanças: {}", e);
+                        let _ = tokio::task::spawn_blocking(move || {
+                            let _ = notify_rust::Notification::new()
+                                .summary("LibreSync")
+                                .body(&body)
+                                .icon("dialog-error")
+                                .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                .show();
+                        })
+                        .await;
+                    }
+                }
+            }
+        }
+        drop(eng_lock);
+    }
+}
+
+fn update_tray_with_status(
+    handle: &tauri::AppHandle<Wry>,
+    status: SyncStatus,
+    ui_state: &Arc<Mutex<AppUiState>>,
+) {
+    let mut ui = ui_state.lock().unwrap();
+    ui.set_sync_status(status);
+    if let Some(tray) = handle.state::<TrayHolder>().0.lock().unwrap().as_ref() {
+        update_tray(tray, &ui);
+    }
+}
+
 async fn get_client_id(app: &tauri::AppHandle<Wry>) -> String {
     let state = app.state::<AppState>();
     if let Ok(ui) = state.ui_state.lock() {
@@ -432,7 +552,7 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
 
     // Ler client_secret do config
     let client_secret = {
-        let mut cfg = LibreSyncConfig::load().unwrap_or_default();
+        let cfg = LibreSyncConfig::load().unwrap_or_default();
         cfg.google.client_secret.clone()
     };
 

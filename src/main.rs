@@ -88,85 +88,9 @@ async fn main() {
     if is_tray && !is_cli {
         println!("Starting LibreSync in tray mode...");
         let engine = Arc::new(tokio::sync::Mutex::new(Some(engine)));
+        let ui_state = Arc::new(std::sync::Mutex::new(AppUiState::new()));
         
-        // Spawn sync loop using tauri's async runtime
-        let eng = engine.clone();
-        let sync_handle = tauri::async_runtime::spawn(async move {
-            let mut last_engine_id = 0usize;
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-                let mut e = eng.lock().await;
-                if let Some(ref mut engine) = *e {
-                    // Detectar se o engine foi substituído
-                    let engine_ptr = engine as *const _ as usize;
-                    if engine_ptr != last_engine_id {
-                        println!("[sync] Engine atualizado (ptr: {})", engine_ptr);
-                        last_engine_id = engine_ptr;
-                    }
-                    
-                    println!("[sync] Iniciando detect_changes...");
-                    match engine.detect_changes().await {
-                        Ok(()) => {
-                            let queue_len = engine.queue_len();
-                            println!("[sync] detect_changes OK, {} jobs na fila", queue_len);
-                            if queue_len > 0 {
-                                println!("[sync] Processando fila...");
-                                match engine.process_queue().await {
-                                    Ok(()) => println!("[sync] process_queue OK"),
-                                    Err(e) => {
-                                        eprintln!("[sync] ERRO process_queue: {}", e);
-                                        let body = format!("Erro ao processar sync: {}", e);
-                                        let _ = tokio::task::spawn_blocking(move || {
-                                            let _ = notify_rust::Notification::new()
-                                                .summary("LibreSync")
-                                                .body(&body)
-                                                .icon("dialog-error")
-                                                .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                                .show();
-                                        })
-                                        .await;
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let error_msg = format!("{}", e);
-                            eprintln!("[sync] ERRO detect_changes: {}", error_msg);
-                            
-                            // Se for erro de autenticação (401), notificar o usuário
-                            if error_msg.contains("401") || error_msg.contains("Unauthorized") {
-                                let _ = tokio::task::spawn_blocking(|| {
-                                    let _ = notify_rust::Notification::new()
-                                        .summary("LibreSync")
-                                        .body("Token expirado. Faça login novamente pelo menu do tray.")
-                                        .icon("dialog-error")
-                                        .timeout(notify_rust::Timeout::Milliseconds(10000))
-                                        .show();
-                                })
-                                .await;
-                            } else {
-                                let body = format!("Erro ao detectar mudanças: {}", e);
-                                let _ = tokio::task::spawn_blocking(move || {
-                                    let _ = notify_rust::Notification::new()
-                                        .summary("LibreSync")
-                                        .body(&body)
-                                        .icon("dialog-error")
-                                        .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                        .show();
-                                })
-                                .await;
-                            }
-                        }
-                    }
-                }
-                drop(e);
-            }
-        });
-        
-        tray_app::run_tray(engine, AppUiState::new());
-        
-        // Keep the sync task alive
-        let _ = sync_handle.await;
+        tray_app::run_tray(engine, ui_state);
     } else {
         run_cli(engine, &config, &sync_dir_str).await;
     }
