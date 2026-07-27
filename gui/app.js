@@ -57,17 +57,15 @@ function showScreen(name) {
 
 function showLogin() {
   showScreen('login');
-  loadAccounts();
 }
 
 function showDashboard() {
   showScreen('dashboard');
-  refreshDashboard();
 }
 
 function showSettings() {
   showScreen('settings');
-  loadSettings();
+  document.getElementById('settings-feedback')?.classList.add('hidden');
 }
 
 // --- LOGIN ---
@@ -333,23 +331,6 @@ function escapeHtml(str) {
 
 // --- INIT ---
 
-async function init() {
-  showLoading(true);
-  try {
-    const state = await getState();
-    if (state.active_account) {
-      showDashboard();
-      startPolling();
-      refreshDashboard();
-    } else {
-      showLogin();
-    }
-  } catch (e) {
-    console.error('init: backend not available, showing login');
-    showLogin();
-  }
-  showLoading(false);
-}
-
-document.addEventListener('DOMContentLoaded', init);
-window.addEventListener('beforeunload', stopPolling);
+document.addEventListener('DOMContentLoaded', () => {
+  showLogin();
+});
