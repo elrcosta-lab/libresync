@@ -36,6 +36,17 @@
 
 ## Pendências Resolvidas (última sessão)
 
+### ✅ Panic de runtime aninhado no modo tray
+**Causa raiz:** O `main()` usa `#[tokio::main]` que cria um runtime Tokio. O `run_tray()` estava criando outro runtime com `Runtime::new().unwrap()` e `block_on()`, causando o panic "Cannot start a runtime from within a runtime".
+
+**Correção:**
+- O loop de sync agora é spawnado como uma task assíncrona com `tokio::spawn()` no `main()`, antes de chamar `run_tray()`.
+- `run_tray()` não cria mais um runtime, apenas roda o Tauri.
+- O `engine` é compartilhado via `Arc<tokio::sync::Mutex<Option<SyncEngine>>>` (tokio::sync::Mutex em vez de std::sync::Mutex para ser Send+async).
+- A função `do_oauth_flow()` foi atualizada para usar `.lock().await` em vez de `.lock().unwrap()`.
+
+**Arquivos alterados:** `src/main.rs`, `src/tray_app.rs`
+
 ### ✅ O sync não está populando a pasta
 **Causa raiz (fase 1):** `SyncEngine::handle_download_job()` chamava `drive_client.download()` mas descartava os bytes retornados — nunca escrevia no arquivo local.
 
