@@ -85,6 +85,29 @@ function showWelcome() {
   showScreen('welcome');
 }
 
+async function syncScreenFromBackend() {
+  try {
+    const state = await getState();
+    const screen = getScreenName(state.screen);
+    if (screen === 'Onboarding') {
+      showWelcome();
+      return;
+    } else if (screen === 'Preferences') {
+      showSettings();
+      return;
+    } else if (screen === 'Main') {
+      if (state.active_account || (state.accounts && state.accounts.length > 0)) {
+        showDashboard();
+      } else {
+        showLogin();
+      }
+      return;
+    }
+  } catch (e) {
+    console.warn('syncScreenFromBackend falhou:', e);
+  }
+}
+
 // --- LOGIN ---
 
 async function loadAccounts() {
@@ -387,21 +410,14 @@ function getScreenName(screen) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  try {
-    const state = await getState();
-    if (getScreenName(state.screen) === 'Onboarding') {
-      showWelcome();
-      return;
-    } else if (state.active_account) {
-      showDashboard();
-      startPolling();
-      return;
-    } else if (state.accounts && state.accounts.length > 0) {
-      showDashboard();
-      return;
-    }
-  } catch (e) {
-    console.warn('getState no init, padrão login:', e);
+  await syncScreenFromBackend();
+  // Fallback: se o backend não expõe screen ou getState falha, mostra login
+  if (document.querySelectorAll('.screen:not(.hidden)').length === 0) {
+    showLogin();
   }
-  showLogin();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncScreenFromBackend();
+    }
+  });
 });

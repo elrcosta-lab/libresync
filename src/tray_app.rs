@@ -401,6 +401,10 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                     }
                 }
                 "preferences" => {
+                    let state = app.state::<AppState>();
+                    let mut ui = state.ui_state.lock().unwrap();
+                    ui.set_screen(AppScreen::Preferences);
+                    drop(ui);
                     if let Some(window) = app.get_webview_window("main") {
                         window.show().ok();
                         window.set_focus().ok();
