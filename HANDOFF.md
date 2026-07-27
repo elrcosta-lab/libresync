@@ -100,6 +100,25 @@
 
 **Correção:** Uso de `tauri::async_runtime::spawn()`, `spawn_blocking()` para chamadas síncronas, isolamento de `notify-rust`.
 
+### ✅ Estrutura de pastas ao baixar do Google Drive
+**Problema:** Arquivos baixados iam todos para a raiz de `~/LibreSync`, ignorando a estrutura de pastas da nuvem. Ex: `Documentos/Trabalho/relatorio.pdf` baixava como `~/LibreSync/relatorio.pdf`.
+
+**Causa raiz:** `detect_changes()` criava `SyncJob::new(&f.name, ...)` — apenas o nome do arquivo, ignorando o campo `parents` (IDs das pastas) retornado pela API.
+
+**Correção:**
+- `resolve_remote_path()` — função recursiva que rastreia a cadeia de `parents` folder IDs até a raiz para reconstruir o caminho completo (`Documentos/Trabalho/relatorio.pdf`)
+- `detect_changes()` constrói um `folder_map` (HashMap id → nome+parents) a partir de todas as pastas listadas
+- `on_remote_change()` usa `resolve_remote_path_for_file()` que resolve o caminho via chamadas `get_metadata` nos parent folders
+- `write_downloaded_file()` já criava subdiretórios com `create_dir_all` — agora recebe o path completo
+
+### ✅ Paginação no list_files (mais de 200 arquivos)
+**Problema:** `list_files()` usava `pageSize=200` sem paginação. Contas com mais de 200 arquivos+pastas nunca listavam o restante, então o `folder_map` ficava incompleto e arquivos nem eram detectados.
+
+**Correção:**
+- `pageSize` aumentado de 200 para **1000** (máximo da API)
+- Loop implementado sobre `nextPageToken` até listar todos os arquivos do Drive
+- Logs informativos por página e total
+
 ---
 
 ## Pendências Ativas

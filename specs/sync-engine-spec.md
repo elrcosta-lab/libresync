@@ -269,7 +269,7 @@ sequenceDiagram
     end
 ```
 
-**Paginação automática:** `changes.list` pode retornar `nextPageToken`. O engine itera até exaurir a paginação antes de atualizar o `startPageToken`.
+**Paginação automática (implementação atual):** `files.list` usa `pageSize=1000` (máximo da API) e itera sobre `nextPageToken` até listar todos os arquivos do Drive. Cada página é logada individualmente. O loop para quando `nextPageToken` é `null`.
 
 ### RF-04: Job Scheduling com Prioridade
 
@@ -510,20 +510,26 @@ async fn verify_download(job: &SyncJob, local_path: &Path) -> Result<(), VerifyE
 
 1. Engine transiciona para SCANNING
 2. Lista recursivamente todos os arquivos na pasta local (`walkdir`)
-3. Lista recursivamente todos os arquivos no Drive (`files.list` com paginação)
-4. Faz diff:
+3. Lista recursivamente todos os arquivos no Drive (`files.list` com paginação `pageSize=1000`, loop sobre `nextPageToken`)
+4. Constrói `folder_map` (HashMap `id → (name, parents)`) com todos os itens de tipo `application/vnd.google-apps.folder`
+5. Para cada arquivo não-pasta, resolve o caminho remoto completo via `resolve_remote_path()`:
+   - Lê o campo `parents` (lista de folder IDs)
+   - Rastreia recursivamente a cadeia de pastas até a raiz
+   - Ex: `file.parents → [folder_B]`, `folder_B.parents → [folder_A]` → `folder_A/folder_B/file.pdf`
+6. Faz diff:
    - Arquivos apenas locais → enfileirar upload
-   - Arquivos apenas remotos → enfileirar download
+   - Arquivos apenas remotos → enfileirar download (com caminho completo)
    - Arquivos em ambos → comparar `modified_at` + SHA256
      - SHA256 igual → synced
      - SHA256 diferente → o mais recente vence
-5. Transiciona para QUEUING com todos os jobs
+7. Transiciona para QUEUING com todos os jobs
 
 **Otimizações:**
 - Para pastas com >50k arquivos, o scan usa 4 workers paralelos para o walkdir
-- A listagem remota usa `fields` minimalistas (`files(id, name, md5Checksum, modifiedTime, size)`)
+- A listagem remota usa `fields` incluindo `nextPageToken,files(id,name,mimeType,size,parents,...)`
 - Cada página de 1000 arquivos é processada conforme chega (streaming, não espera todas as páginas)
 - O diff é feito em memória usando `HashMap<path, metadata>` — custo O(n+m) no número total de arquivos
+- O `folder_map` é construído a partir da mesma listagem, sem chamadas adicionais à API
 
 ```rust
 async fn initial_scan(state: &SyncEngineState, folder: &SyncFolder) -> Result<Vec<SyncJob>> {

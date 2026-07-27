@@ -126,6 +126,17 @@ gui/
 ├── index.html     Interface gráfica (Tauri WebView) — 4 telas
 ├── app.js         Lógica da interface (IPC, navegação, polling)
 └── style.css      Tema escuro responsivo
+icons/
+├── icon.png       Ícone do aplicativo (512×512)
+├── icon-256.png   Ícone (256×256)
+├── icon-128.png   Ícone (128×128)
+├── tray.png       Ícone da bandeja (64×64)
+└── tray-32.png    Ícone da bandeja (32×32)
+resources/
+└── icons/
+    ├── icon.svg       Ícone vetorial
+    ├── icon.png       Ícone do app (256×256)
+    └── status/32x32/  Ícones de estado (synced, syncing, error, paused, offline)
 ```
 
 ## Configuração
