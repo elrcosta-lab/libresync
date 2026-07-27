@@ -10,7 +10,7 @@ pub fn build_authorization_url(
         ("client_id", client_id),
         ("redirect_uri", redirect_uri),
         ("response_type", "code"),
-        ("scope", "https://www.googleapis.com/auth/drive.file"),
+        ("scope", "https://www.googleapis.com/auth/drive"),
         ("code_challenge", code_challenge),
         ("code_challenge_method", "S256"),
         ("state", state),

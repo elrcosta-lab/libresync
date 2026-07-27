@@ -17,6 +17,7 @@ pub struct GoogleConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSettings {
+    #[serde(default = "default_sync_dir")]
     pub local_dir: PathBuf,
     #[serde(default = "default_sync_interval")]
     pub poll_interval_secs: u64,
@@ -32,6 +33,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_sync_dir() -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        PathBuf::from(home).join("LibreSync")
+    } else {
+        PathBuf::from("LibreSync")
+    }
+}
+
 impl Default for LibreSyncConfig {
     fn default() -> Self {
         Self {
@@ -41,7 +50,7 @@ impl Default for LibreSyncConfig {
                 refresh_token: None,
             },
             sync: SyncSettings {
-                local_dir: PathBuf::from("LibreSync"),
+                local_dir: default_sync_dir(),
                 poll_interval_secs: 30,
                 auto_start: true,
             },
