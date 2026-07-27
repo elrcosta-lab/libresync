@@ -66,6 +66,16 @@
 
 **Arquivos alterados:** `src/tray_app.rs`, `src/main.rs`
 
+### ✅ Panic de runtime aninhado após erro 401
+**Causa raiz:** Após o erro `HTTP 401 Unauthorized`, o loop de sync chamava `notify_rust::Notification::show()` diretamente dentro de uma task async do Tokio. O `notify-rust` usa D-Bus internamente e pode bloquear/inicializar runtime, causando novamente o panic "Cannot start a runtime from within a runtime" no worker Tokio.
+
+**Correção:**
+- Notificações do loop de sync em `main.rs` agora rodam dentro de `tokio::task::spawn_blocking()`.
+- Notificações chamadas por funções async em `tray_app.rs` também foram isoladas com `spawn_blocking()`.
+- Build release e suíte completa de testes validados após a correção.
+
+**Arquivos alterados:** `src/main.rs`, `src/tray_app.rs`
+
 ### ✅ O sync não está populando a pasta
 **Causa raiz (fase 1):** `SyncEngine::handle_download_job()` chamava `drive_client.download()` mas descartava os bytes retornados — nunca escrevia no arquivo local.
 

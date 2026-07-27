@@ -343,12 +343,15 @@ async fn get_client_id(app: &tauri::AppHandle<Wry>) -> String {
             return cid;
         }
     }
-    let _ = notify_rust::Notification::new()
-        .summary("LibreSync")
-        .body("GOOGLE_CLIENT_ID não configurado.")
-        .icon("dialog-error")
-        .timeout(notify_rust::Timeout::Milliseconds(5000))
-        .show();
+    let _ = tokio::task::spawn_blocking(|| {
+        let _ = notify_rust::Notification::new()
+            .summary("LibreSync")
+            .body("GOOGLE_CLIENT_ID não configurado.")
+            .icon("dialog-error")
+            .timeout(notify_rust::Timeout::Milliseconds(5000))
+            .show();
+    })
+    .await;
     String::new()
 }
 
@@ -403,11 +406,14 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     *eng = Some(new_engine);
     drop(eng);
 
-    let _ = notify_rust::Notification::new()
-        .summary("LibreSync")
-        .body("Autenticação concluída! Sincronização iniciada.")
-        .icon("dialog-information")
-        .timeout(notify_rust::Timeout::Milliseconds(5000))
-        .show();
+    let _ = tokio::task::spawn_blocking(|| {
+        let _ = notify_rust::Notification::new()
+            .summary("LibreSync")
+            .body("Autenticação concluída! Sincronização iniciada.")
+            .icon("dialog-information")
+            .timeout(notify_rust::Timeout::Milliseconds(5000))
+            .show();
+    })
+    .await;
     Ok(())
 }

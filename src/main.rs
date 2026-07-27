@@ -107,12 +107,16 @@ async fn main() {
                                     Ok(()) => println!("[sync] process_queue OK"),
                                     Err(e) => {
                                         eprintln!("[sync] ERRO process_queue: {}", e);
-                                        let _ = notify_rust::Notification::new()
-                                            .summary("LibreSync")
-                                            .body(&format!("Erro ao processar sync: {}", e))
-                                            .icon("dialog-error")
-                                            .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                            .show();
+                                        let body = format!("Erro ao processar sync: {}", e);
+                                        let _ = tokio::task::spawn_blocking(move || {
+                                            let _ = notify_rust::Notification::new()
+                                                .summary("LibreSync")
+                                                .body(&body)
+                                                .icon("dialog-error")
+                                                .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                                .show();
+                                        })
+                                        .await;
                                     }
                                 }
                             }
@@ -123,19 +127,26 @@ async fn main() {
                             
                             // Se for erro de autenticação (401), notificar o usuário
                             if error_msg.contains("401") || error_msg.contains("Unauthorized") {
-                                let _ = notify_rust::Notification::new()
-                                    .summary("LibreSync")
-                                    .body("Token expirado. Faça login novamente pelo menu do tray.")
-                                    .icon("dialog-error")
-                                    .timeout(notify_rust::Timeout::Milliseconds(10000))
-                                    .show();
+                                let _ = tokio::task::spawn_blocking(|| {
+                                    let _ = notify_rust::Notification::new()
+                                        .summary("LibreSync")
+                                        .body("Token expirado. Faça login novamente pelo menu do tray.")
+                                        .icon("dialog-error")
+                                        .timeout(notify_rust::Timeout::Milliseconds(10000))
+                                        .show();
+                                })
+                                .await;
                             } else {
-                                let _ = notify_rust::Notification::new()
-                                    .summary("LibreSync")
-                                    .body(&format!("Erro ao detectar mudanças: {}", e))
-                                    .icon("dialog-error")
-                                    .timeout(notify_rust::Timeout::Milliseconds(5000))
-                                    .show();
+                                let body = format!("Erro ao detectar mudanças: {}", e);
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    let _ = notify_rust::Notification::new()
+                                        .summary("LibreSync")
+                                        .body(&body)
+                                        .icon("dialog-error")
+                                        .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                        .show();
+                                })
+                                .await;
                             }
                         }
                     }
