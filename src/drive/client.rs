@@ -176,22 +176,47 @@ impl DriveApiClient {
             q = format!("'{}' in parents and trashed=false", pid);
         }
 
-        let resp = self
-            .client
-            .get(format!("{}/files", self.drive_api_base))
-            .header("Authorization", &token)
-            .query(&[
-                ("q", q.as_str()),
-                ("pageSize", "200"),
-                ("fields", "files(id,name,mimeType,size,createdTime,modifiedTime,md5Checksum,parents,trashed)"),
-            ])
-            .send()
-            .await
-            .map_err(|e| DriveError::Network(e.to_string()))?;
+        let fields = "nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,md5Checksum,parents,trashed)";
+        let mut all_files = Vec::new();
+        let mut page_token: Option<String> = None;
 
-        let list: FileList = self.json_or_error(resp).await?;
-        println!("[list_files] {} arquivos retornados pela API", list.files.len());
-        Ok(list.files)
+        loop {
+            let mut query_params = vec![
+                ("q", q.as_str()),
+                ("pageSize", "1000"),
+                ("fields", fields),
+            ];
+            if let Some(ref token) = page_token {
+                query_params.push(("pageToken", token.as_str()));
+            }
+
+            let resp = self
+                .client
+                .get(format!("{}/files", self.drive_api_base))
+                .header("Authorization", &token)
+                .query(&query_params)
+                .send()
+                .await
+                .map_err(|e| DriveError::Network(e.to_string()))?;
+
+            let list: FileList = self.json_or_error(resp).await?;
+            let count = list.files.len();
+            all_files.extend(list.files);
+
+            match list.next_page_token {
+                Some(next) => {
+                    println!("[list_files] {} arquivos nesta página, buscando próxima...", count);
+                    page_token = Some(next);
+                }
+                None => {
+                    println!("[list_files] {} arquivos nesta página — listagem completa", count);
+                    break;
+                }
+            }
+        }
+
+        println!("[list_files] Total: {} arquivos", all_files.len());
+        Ok(all_files)
     }
 
     pub async fn get_metadata(&self, file_id: &str) -> DriveResult<DriveFile> {
