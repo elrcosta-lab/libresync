@@ -91,6 +91,12 @@ impl SyncEngine {
     }
 
     pub async fn detect_changes(&mut self) -> Result<(), SyncError> {
+        // Garantir que estamos em Idle antes de iniciar scan
+        let current = self.state_machine.current();
+        if current == SyncState::Queuing {
+            let _ = self.state_machine.transition(SyncState::Idle);
+        }
+        
         self.state_machine.transition(SyncState::Scanning)?;
 
         println!("[detect_changes] Listando arquivos remotos...");

@@ -63,7 +63,7 @@ impl SyncStateMachine {
             (self.current, target),
             (Idle, Scanning | Paused | Offline)
                 | (Scanning, Queuing | Error)
-                |                 (Queuing, Uploading | Downloading | Conflict | Error)
+                | (Queuing, Uploading | Downloading | Conflict | Error | Idle)
                 | (Uploading, Verifying | Retrying | Conflict | Error)
                 | (Downloading, Verifying | Retrying | Conflict | Error)
                 | (Verifying, Idle | Retrying | Error)

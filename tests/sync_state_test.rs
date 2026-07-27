@@ -110,8 +110,8 @@ fn test_idle_to_downloading_invalid() {
 }
 
 #[test]
-fn test_queuing_to_idle_invalid() {
-    assert_invalid_transition(SyncState::Queuing, SyncState::Idle);
+fn test_queuing_to_idle_valid() {
+    assert_valid_transition(SyncState::Queuing, SyncState::Idle);
 }
 
 #[test]

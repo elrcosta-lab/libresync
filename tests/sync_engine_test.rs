@@ -194,6 +194,20 @@ async fn test_detect_changes_failure_returns_to_idle() {
 }
 
 #[tokio::test]
+async fn test_detect_changes_multiple_cycles() {
+    let mock = Arc::new(StatefulMockDriveApi::new());
+    let mut engine = create_engine_with_mock(mock);
+
+    // Primeiro ciclo
+    engine.detect_changes().await.unwrap();
+    assert_eq!(engine.state().to_string(), "Queuing");
+
+    // Segundo ciclo - deve funcionar mesmo estando em Queuing
+    engine.detect_changes().await.unwrap();
+    assert_eq!(engine.state().to_string(), "Queuing");
+}
+
+#[tokio::test]
 async fn test_on_file_changed_enqueues_upload() {
     let mut engine = create_test_engine();
     engine.on_file_changed("/home/test/file.txt").await.unwrap();
