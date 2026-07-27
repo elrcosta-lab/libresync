@@ -96,6 +96,17 @@
 
 **Arquivos alterados:** `src/sync/engine.rs`, `tests/sync_engine_test.rs`
 
+### ✅ State machine presa em Queuing após ciclo completo
+**Causa raiz:** Após `detect_changes()` completar com sucesso, o estado ficava em `Queuing`. No ciclo seguinte, `detect_changes()` tentava transicionar `Queuing -> Scanning`, que não era permitida.
+
+**Correção:**
+- Adicionada transição `Queuing -> Idle` na state machine.
+- `detect_changes()` agora verifica se está em `Queuing` e transiciona para `Idle` antes de iniciar novo scan.
+- Teste `test_queuing_to_idle_invalid` renomeado para `test_queuing_to_idle_valid`.
+- Adicionado teste `test_detect_changes_multiple_cycles` para validar múltiplos ciclos.
+
+**Arquivos alterados:** `src/sync/state.rs`, `src/sync/engine.rs`, `tests/sync_state_test.rs`, `tests/sync_engine_test.rs`
+
 ### ✅ O sync não está populando a pasta
 **Causa raiz (fase 1):** `SyncEngine::handle_download_job()` chamava `drive_client.download()` mas descartava os bytes retornados — nunca escrevia no arquivo local.
 
