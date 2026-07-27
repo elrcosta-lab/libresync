@@ -46,11 +46,11 @@
 **Arquivos alterados:** `src/tray_app.rs`
 
 ### ✅ Panic de runtime aninhado no loop de sync
-**Causa raiz:** O `main()` usa `#[tokio::main]` que cria um runtime Tokio. O `run_tray()` estava criando outro runtime com `Runtime::new().unwrap()` e `block_on()`, causando o panic "Cannot start a runtime from within a runtime".
+**Causa raiz:** O `main()` usa `#[tokio::main]` que cria um runtime Tokio. O loop de sync estava sendo spawnado com `tokio::spawn()` dentro do contexto do Tauri, mas o Tauri tem seu próprio runtime. Isso causava o panic "Cannot start a runtime from within a runtime".
 
 **Correção:**
-- O loop de sync agora é spawnado como uma task assíncrona com `tokio::spawn()` no `main()`, antes de chamar `run_tray()`.
-- `run_tray()` não cria mais um runtime, apenas roda o Tauri.
+- Substituído `tokio::spawn()` por `tauri::async_runtime::spawn()` no `main.rs` para spawnar o loop de sync.
+- O `tauri::async_runtime::spawn()` é seguro usar dentro do contexto do Tauri e usa o runtime do Tauri.
 - O `engine` é compartilhado via `Arc<tokio::sync::Mutex<Option<SyncEngine>>>` (tokio::sync::Mutex em vez de std::sync::Mutex para ser Send+async).
 - A função `do_oauth_flow()` foi atualizada para usar `.lock().await` em vez de `.lock().unwrap()`.
 
