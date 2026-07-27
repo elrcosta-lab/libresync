@@ -1,6 +1,6 @@
 # LibreSync — Sumário da Sessão
 
-## 48 commits, 6 specs SDD, 51 testes unitários + 52 testes de integração
+## 74 commits, 8 specs SDD, 51 testes unitários + 52 testes de integração
 
 ---
 
@@ -32,6 +32,18 @@
 - **.deb package** — 6.4MB, script `build-deb.sh` reproduzível
 - **Dockerfile** — teste em container Ubuntu 24.04
 - **Documentação** — README, PRD v1.1, 6 specs
+
+### Ícone personalizado
+- **Ícone principal** — 512×512 PNG com design moderno (setas de sync verde + azul em gradiente azul escuro)
+- **Ícone tray** — 64×64 e 32×32 para system tray
+- **Status icons** — 5 ícones de estado (synced/syncing/error/paused/offline) em `resources/icons/status/32x32/`
+- **SVG vetorial** — `resources/icons/icon.svg` para escalabilidade
+
+### Segurança
+- **LibreSync/ adicionado ao .gitignore** — evita novos vazamentos
+- **git-filter-repo** — `LibreSync/` removido de todo o histórico git (73 commits reescritos)
+- **Force push** — histórico limpo no GitHub (remote sobrescrito)
+- **Debug log sanitizado** — `src/drive/client.rs` não loga mais refresh_token (mesmo truncado)
 
 ---
 

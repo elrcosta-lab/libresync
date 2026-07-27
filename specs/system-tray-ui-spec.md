@@ -296,13 +296,13 @@ pub fn create_tray(app: &AppHandle, state: &AppState) -> TrayHandle {
 
 **Ícones por estado:**
 
-| Estado | Arquivo | Cor | Descrição |
-|--------|---------|-----|-----------|
-| `Synced` | `tray-synced.png` | Verde (#27AE60) | Check simples ou pasta com check |
-| `Syncing` | `tray-syncing.png` | Azul (#3498DB) | Seta circular — animação de rotação via `set_icon` alternado a cada frame |
-| `Error` | `tray-error.png` | Vermelho (#E74C3C) | Ponto de exclamação ou X |
-| `Paused` | `tray-paused.png` | Cinza (#95A5A6) | Símbolo de pausa (∥) |
-| `Offline` | `tray-offline.png` | Branco (#FFFFFF) | Nuvem com risco ou círculo vazado |
+| Estado | Arquivo (32×32) | Cor | Descrição |
+|--------|-----------------|-----|-----------|
+| `Synced` | `resources/icons/status/32x32/synced.png` | Verde (#4CAF50) | Checkmark branco sobre fundo verde |
+| `Syncing` | `resources/icons/status/32x32/syncing.png` | Azul (#2196F3) | Setas circulares sobre fundo azul |
+| `Error` | `resources/icons/status/32x32/error.png` | Vermelho (#F44336) | Setas sync sobre fundo vermelho |
+| `Paused` | `resources/icons/status/32x32/paused.png` | Cinza (#9E9E9E) | Barras de pause sobre fundo cinza |
+| `Offline` | `resources/icons/status/32x32/offline.png` | Cinza claro (#C8C8C8) | Setas sync sobre fundo cinza claro |
 
 **Animação no estado Syncing:** Alternar entre 4-8 frames de ícone (rotação) via set_icon a cada 200ms enquanto houver pelo menos 1 job rodando.
 

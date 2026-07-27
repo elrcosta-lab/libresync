@@ -9,3 +9,4 @@ Thumbs.db
 *.deb
 build/
 deb-pkg/
+LibreSync/

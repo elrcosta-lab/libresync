@@ -43,8 +43,8 @@ cargo build --release
 Na **primeira execução**, o LibreSync abre automaticamente uma janela de boas-vindas com o passo a passo:
 
 1. Crie um **OAuth 2.0 Client ID** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   - Tipo: "Desktop application"
-   - Redirect URI: `http://localhost:65432/callback`
+   - Tipo: **"Web application"** (o tipo Desktop app não exibe o campo de redirect URIs customizado)
+   - Authorized redirect URIs: `http://localhost:65432/callback`
 2. Ative a **Google Drive API** no mesmo projeto
 3. Cole o **Client ID** (e opcionalmente o **Client Secret**) na tela de boas-vindas e clique em "Concluir configuração"
 4. Clique com direito no ícone da bandeja → **Conectar conta Google**
