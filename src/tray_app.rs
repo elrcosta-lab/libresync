@@ -218,6 +218,7 @@ pub fn run_tray(engine: Arc<tokio::sync::Mutex<Option<SyncEngine>>>, ui_state: A
 fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
     let login = MenuItemBuilder::with_id("login", "Conectar conta Google").build(app)?;
     let config_id = MenuItemBuilder::with_id("config_id", "Configurar Client ID").build(app)?;
+    let config_secret = MenuItemBuilder::with_id("config_secret", "Configurar Client Secret").build(app)?;
     let pause = MenuItemBuilder::with_id("pause", "Pause Sync").build(app)?;
     let preferences = MenuItemBuilder::with_id("preferences", "Preferences").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit LibreSync").build(app)?;
@@ -225,6 +226,7 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
     let menu = MenuBuilder::new(app)
         .item(&login)
         .item(&config_id)
+        .item(&config_secret)
         .separator()
         .item(&pause)
         .item(&preferences)
@@ -271,6 +273,27 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                             if !cid.is_empty() {
                                 let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
                                 cfg.google.client_id = cid;
+                                cfg.save().ok();
+                            }
+                        }
+                    });
+                }
+                "config_secret" => {
+                    tauri::async_runtime::spawn(async {
+                        let input = tokio::task::spawn_blocking(|| {
+                            std::process::Command::new("zenity")
+                                .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client Secret:", "--width=500"])
+                                .output()
+                        })
+                        .await
+                        .ok()
+                        .and_then(|r| r.ok());
+                        
+                        if let Some(input) = input {
+                            let secret = String::from_utf8_lossy(&input.stdout).trim().to_string();
+                            if !secret.is_empty() {
+                                let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+                                cfg.google.client_secret = Some(secret);
                                 cfg.save().ok();
                             }
                         }
@@ -407,7 +430,24 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
 
     println!("[oauth] Callback recebido, trocando código por token...");
 
-    let provider = GoogleAuthProvider::new();
+    // Ler client_secret do config
+    let client_secret = {
+        let mut cfg = LibreSyncConfig::load().unwrap_or_default();
+        cfg.google.client_secret.clone()
+    };
+
+    let provider = if let Some(ref secret) = client_secret {
+        println!("[oauth] Usando client_secret do config");
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("failed to build reqwest Client");
+        GoogleAuthProvider::with_client_secret(client, secret)
+    } else {
+        println!("[oauth] Sem client_secret, usando PKCE puro");
+        GoogleAuthProvider::new()
+    };
+    
     println!("[oauth] Chamando exchange_code...");
     let token = provider.exchange_code(client_id, &cb.code, &session.code_verifier, redirect_uri)
         .await.map_err(|e| {
