@@ -229,57 +229,15 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
             let id = event.id();
             match id.as_ref() {
                 "login" => {
-                    let mut client_id = String::new();
-                    // Try UI state
-                    let state = app.state::<AppState>();
-                    if let Ok(ui) = state.ui_state.lock() {
-                        if !ui.config.client_id.is_empty() {
-                            client_id = ui.config.client_id.clone();
-                        }
-                    }
-                    drop(state);
-                    // Try env var
-                    if client_id.is_empty() {
-                        if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
-                            client_id = id;
-                        }
-                    }
-                    // Try config file
-                    if client_id.is_empty() {
-                        if let Ok(cfg) = libresync_core::config::LibreSyncConfig::load() {
-                            client_id = cfg.google.client_id;
-                        }
-                    }
-                    // If still empty, prompt user
-                    if client_id.is_empty() {
-                        if let Ok(input) = std::process::Command::new("zenity")
-                            .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
-                            .output()
-                        {
-                            let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
-                            if !cid.is_empty() {
-                                client_id = cid;
-                                // Save to config
-                                let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
-                                cfg.google.client_id = client_id.clone();
-                                cfg.save().ok();
-                            }
-                        }
-                    }
-                    if client_id.is_empty() {
-                        let _ = notify_rust::Notification::new()
-                            .summary("LibreSync")
-                            .body("GOOGLE_CLIENT_ID não configurado.\nExecute no terminal: export GOOGLE_CLIENT_ID=seu_id")
-                            .icon("dialog-error")
-                            .timeout(notify_rust::Timeout::Milliseconds(8000))
-                            .show();
-                        return;
-                    }
-                    let url = format!(
-                        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:65432/callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",
-                        client_id
-                    );
-                    let _ = open::that(&url);
+                    let handle = app.clone();
+                    let _ = std::thread::spawn(move || {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            let cid = get_client_id(&handle).await;
+                            if cid.is_empty() { return; }
+                            do_oauth_flow(&cid).await.ok();
+                        });
+                    });
                 }
                 "config_id" => {
                     if let Ok(input) = std::process::Command::new("zenity")
@@ -333,4 +291,73 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
         .build(app)?;
 
     Ok(tray)
+}
+
+async fn get_client_id(app: &tauri::AppHandle<Wry>) -> String {
+    let state = app.state::<AppState>();
+    if let Ok(ui) = state.ui_state.lock() {
+        if !ui.config.client_id.is_empty() {
+            return ui.config.client_id.clone();
+        }
+    }
+    if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
+        return id;
+    }
+    if let Ok(cfg) = libresync_core::config::LibreSyncConfig::load() {
+        if !cfg.google.client_id.is_empty() {
+            return cfg.google.client_id;
+        }
+    }
+    if let Ok(input) = std::process::Command::new("zenity")
+        .args(&["--entry", "--title=LibreSync", "--text=Cole seu Google Client ID:", "--width=500"])
+        .output()
+    {
+        let cid = String::from_utf8_lossy(&input.stdout).trim().to_string();
+        if !cid.is_empty() {
+            let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+            cfg.google.client_id = cid.clone();
+            cfg.save().ok();
+            return cid;
+        }
+    }
+    let _ = notify_rust::Notification::new()
+        .summary("LibreSync")
+        .body("GOOGLE_CLIENT_ID não configurado.")
+        .icon("dialog-error")
+        .timeout(notify_rust::Timeout::Milliseconds(5000))
+        .show();
+    String::new()
+}
+
+async fn do_oauth_flow(client_id: &str) -> Result<(), String> {
+    use libresync_core::auth::provider::GoogleAuthProvider;
+    use libresync_core::auth::server::CallbackServer;
+    use libresync_core::auth::session::PkceSession;
+
+    let session = PkceSession::new(client_id);
+    let redirect_uri = "http://localhost:65432/callback";
+    let auth_url = session.authorization_url(redirect_uri);
+    let server = CallbackServer::new().with_timeout(std::time::Duration::from_secs(300));
+
+    open::that(&auth_url).map_err(|_| "Erro ao abrir navegador".to_string())?;
+
+    let cb = server.wait_for_callback(&session.state).await
+        .map_err(|e| format!("Callback: {}", e))?;
+
+    let provider = GoogleAuthProvider::new();
+    let token = provider.exchange_code(client_id, &cb.code, &session.code_verifier, redirect_uri)
+        .await.map_err(|e| format!("Token: {}", e))?;
+
+    let rt = token.refresh_token.unwrap_or_default();
+    let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
+    cfg.google.refresh_token = Some(rt);
+    cfg.save().ok();
+
+    let _ = notify_rust::Notification::new()
+        .summary("LibreSync")
+        .body("Autenticação concluída! Sincronização iniciada.")
+        .icon("dialog-information")
+        .timeout(notify_rust::Timeout::Milliseconds(5000))
+        .show();
+    Ok(())
 }
