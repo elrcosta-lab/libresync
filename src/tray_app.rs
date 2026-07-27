@@ -201,13 +201,15 @@ pub fn run_tray(engine: SyncEngine, ui_state: AppUiState) {
 }
 
 fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
+    let login = MenuItemBuilder::with_id("login", "Conectar conta Google").build(app)?;
     let pause = MenuItemBuilder::with_id("pause", "Pause Sync").build(app)?;
     let preferences = MenuItemBuilder::with_id("preferences", "Preferences").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit LibreSync").build(app)?;
 
     let menu = MenuBuilder::new(app)
-        .item(&pause)
+        .item(&login)
         .separator()
+        .item(&pause)
         .item(&preferences)
         .separator()
         .item(&quit)
@@ -224,6 +226,26 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
         .on_menu_event(|app, event| {
             let id = event.id();
             match id.as_ref() {
+                "login" => {
+                    let state = app.state::<AppState>();
+                    let client_id = {
+                        let ui = state.ui_state.lock().unwrap();
+                        ui.config.client_id.clone()
+                    };
+                    drop(state);
+                    let cid = if !client_id.is_empty() {
+                        client_id
+                    } else if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
+                        id
+                    } else {
+                        return;
+                    };
+                    let url = format!(
+                        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:65432/callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",
+                        cid
+                    );
+                    let _ = open::that(&url);
+                }
                 "pause" => {
                     let state = app.state::<AppState>();
                     let mut ui = state.ui_state.lock().unwrap();
