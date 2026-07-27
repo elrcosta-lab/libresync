@@ -227,17 +227,28 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
             let id = event.id();
             match id.as_ref() {
                 "login" => {
+                    let mut client_id = String::new();
+                    // Try UI state first
                     let state = app.state::<AppState>();
-                    let client_id = {
-                        let ui = state.ui_state.lock().unwrap();
-                        ui.config.client_id.clone()
-                    };
+                    if let Ok(ui) = state.ui_state.lock() {
+                        if !ui.config.client_id.is_empty() {
+                            client_id = ui.config.client_id.clone();
+                        }
+                    }
                     drop(state);
-                    let cid = if !client_id.is_empty() {
-                        client_id
-                    } else if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
-                        id
-                    } else {
+                    // Then env var
+                    if client_id.is_empty() {
+                        if let Ok(id) = std::env::var("GOOGLE_CLIENT_ID") {
+                            client_id = id;
+                        }
+                    }
+                    // Then config file
+                    if client_id.is_empty() {
+                        if let Ok(cfg) = libresync_core::config::LibreSyncConfig::load() {
+                            client_id = cfg.google.client_id;
+                        }
+                    }
+                    if client_id.is_empty() {
                         let _ = notify_rust::Notification::new()
                             .summary("LibreSync")
                             .body("GOOGLE_CLIENT_ID não configurado.\nVá em Configurações > Google Client ID e cole seu ID.")
@@ -245,10 +256,10 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                             .timeout(notify_rust::Timeout::Milliseconds(5000))
                             .show();
                         return;
-                    };
+                    }
                     let url = format!(
                         "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri=http://localhost:65432/callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent",
-                        cid
+                        client_id
                     );
                     let _ = open::that(&url);
                 }

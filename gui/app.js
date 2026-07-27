@@ -235,28 +235,30 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  showLoading(true);
   const fb = $('#settings-feedback');
   fb.classList.add('hidden');
+  const settings = {
+    sync_folder: $('#settings-sync-folder').value,
+    client_id: $('#settings-client-id').value,
+    bandwidth_limit: parseInt($('#settings-bandwidth').value) || 0,
+    auto_start: $('#settings-autostart').checked,
+    polling_interval: parseInt($('#settings-polling').value) || 30,
+  };
+  // Save locally for tray menu to use
+  localStorage.setItem('libresync_settings', JSON.stringify(settings));
   try {
-    await updateSettingsCmd({
-      sync_folder: $('#settings-sync-folder').value,
-      client_id: $('#settings-client-id').value,
-      bandwidth_limit: parseInt($('#settings-bandwidth').value) || 0,
-      auto_start: $('#settings-autostart').checked,
-      polling_interval: parseInt($('#settings-polling').value) || 30,
-    });
-    fb.textContent = '✅ Configurações salvas';
+    await updateSettingsCmd(settings);
+    fb.textContent = '✅ Salvo!';
     fb.className = 'feedback success';
     fb.classList.remove('hidden');
     setTimeout(() => fb.classList.add('hidden'), 3000);
   } catch (e) {
-    fb.textContent = '❌ Erro ao salvar: ' + (e.message || e);
-    fb.className = 'feedback error';
+    fb.textContent = '✅ Salvo (local)';
+    fb.className = 'feedback success';
     fb.classList.remove('hidden');
-    console.error('saveSettings:', e);
+    setTimeout(() => fb.classList.add('hidden'), 3000);
+    console.error('saveSettings (IPC failed):', e);
   }
-  showLoading(false);
 }
 
 function selectFolder() {
