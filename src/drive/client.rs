@@ -163,6 +163,7 @@ impl DriveApiClient {
     }
 
     pub async fn list_files(&self, parent_id: Option<&str>) -> DriveResult<Vec<DriveFile>> {
+        println!("[list_files] Chamando Drive API list_files...");
         self.apply_bandwidth_limit(1024).await;
         let token = self.ensure_token().await?;
         let mut q = "trashed=false".to_string();
@@ -184,6 +185,7 @@ impl DriveApiClient {
             .map_err(|e| DriveError::Network(e.to_string()))?;
 
         let list: FileList = self.json_or_error(resp).await?;
+        println!("[list_files] {} arquivos retornados pela API", list.files.len());
         Ok(list.files)
     }
 

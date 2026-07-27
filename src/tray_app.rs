@@ -181,8 +181,37 @@ pub fn run_tray(engine: SyncEngine, ui_state: AppUiState) {
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 if let Ok(mut e) = eng.lock() {
                     if let Some(ref mut engine) = *e {
-                        let _ = engine.detect_changes().await;
-                        let _ = engine.process_queue().await;
+                        println!("[sync] Iniciando detect_changes...");
+                        match engine.detect_changes().await {
+                            Ok(()) => {
+                                let queue_len = engine.queue_len();
+                                println!("[sync] detect_changes OK, {} jobs na fila", queue_len);
+                                if queue_len > 0 {
+                                    println!("[sync] Processando fila...");
+                                    match engine.process_queue().await {
+                                        Ok(()) => println!("[sync] process_queue OK"),
+                                        Err(e) => {
+                                            eprintln!("[sync] ERRO process_queue: {}", e);
+                                            let _ = notify_rust::Notification::new()
+                                                .summary("LibreSync")
+                                                .body(&format!("Erro ao processar sync: {}", e))
+                                                .icon("dialog-error")
+                                                .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                                .show();
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[sync] ERRO detect_changes: {}", e);
+                                let _ = notify_rust::Notification::new()
+                                    .summary("LibreSync")
+                                    .body(&format!("Erro ao detectar mudanças: {}", e))
+                                    .icon("dialog-error")
+                                    .timeout(notify_rust::Timeout::Milliseconds(5000))
+                                    .show();
+                            }
+                        }
                     }
                 }
             }

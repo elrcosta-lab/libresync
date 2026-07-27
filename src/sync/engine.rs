@@ -93,14 +93,18 @@ impl SyncEngine {
     pub async fn detect_changes(&mut self) -> Result<(), SyncError> {
         self.state_machine.transition(SyncState::Scanning)?;
 
+        println!("[detect_changes] Listando arquivos remotos...");
         let remote_files = self
             .drive_client
             .list_files(None)
             .await
             .map_err(|e| SyncError::EngineError(format!("list: {}", e)))?;
 
+        println!("[detect_changes] {} arquivos remotos encontrados", remote_files.len());
+
         let mut queue = self.job_queue.lock().unwrap();
         for f in &remote_files {
+            println!("[detect_changes] Criando job download para '{}' (id: {})", f.name, f.id);
             let job = SyncJob::new(&f.name, JobType::Download)
                 .with_remote_file_id(&f.id);
             queue.enqueue(job);
@@ -118,8 +122,11 @@ impl SyncEngine {
         };
 
         if !has_work {
+            println!("[process_queue] Nenhum job na fila");
             return Ok(());
         }
+
+        println!("[process_queue] Iniciando processamento da fila...");
 
         if self.state_machine.current() == SyncState::Idle {
             self.state_machine.transition(SyncState::Scanning)?;
@@ -333,6 +340,7 @@ impl SyncEngine {
 
     async fn write_downloaded_file(&self, name: &str, data: &[u8]) -> Result<(), DriveError> {
         let local_path = format!("{}/{}", self.sync_dir, name);
+        println!("[write_downloaded_file] Escrevendo {} bytes em '{}'", data.len(), local_path);
         if let Some(parent) = std::path::Path::new(&local_path).parent() {
             tokio::fs::create_dir_all(parent)
                 .await
@@ -341,6 +349,7 @@ impl SyncEngine {
         tokio::fs::write(&local_path, data)
             .await
             .map_err(|e| DriveError::Network(format!("write: {}", e)))?;
+        println!("[write_downloaded_file] Arquivo '{}' escrito com sucesso", local_path);
         Ok(())
     }
 
@@ -356,8 +365,11 @@ impl SyncEngine {
             None => name,
         };
 
+        println!("[handle_download_job] Baixando '{}' (file_id: {})", name, file_id);
+
         match self.drive_client.get_metadata(file_id).await {
             Ok(remote_file) => {
+                println!("[handle_download_job] Metadata OK para '{}'", remote_file.name);
                 if let Ok(local_content) = tokio::fs::read(local_path).await {
                     let local_hash = compute_local_hash(&local_content);
                     if let Some(ref remote_hash) = remote_file.md5_checksum {
