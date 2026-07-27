@@ -59,6 +59,17 @@ impl DriveApiClient {
             .timeout(std::time::Duration::from_secs(60))
             .build()
             .expect("reqwest Client");
+        
+        let rt_preview = if refresh_token.len() > 10 {
+            format!("{}...", &refresh_token[..10])
+        } else {
+            refresh_token.to_string()
+        };
+        println!("[DriveApiClient] Criado com client_id: {}... refresh_token: {}", 
+            if client_id.len() > 10 { &client_id[..10] } else { client_id },
+            rt_preview
+        );
+        
         Self {
             client,
             auth,

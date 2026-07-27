@@ -405,12 +405,18 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
         .await.map_err(|e| format!("Token: {}", e))?;
 
     let rt = token.refresh_token.unwrap_or_default();
+    println!("[oauth] Token obtido. refresh_token: {} chars", rt.len());
+
+    if rt.is_empty() {
+        return Err("Google não retornou refresh_token. Verifique as permissões do OAuth.".to_string());
+    }
 
     // Save tokens and recreate engine with real credentials
     let mut cfg = LibreSyncConfig::load().unwrap_or_default();
     cfg.google.client_id = client_id.to_string();
     cfg.google.refresh_token = Some(rt.clone());
     cfg.save().ok();
+    println!("[oauth] Tokens salvos em config.toml");
 
     let auth = Arc::new(GoogleAuthProvider::new());
     let drive_api: Arc<dyn DriveApi> = Arc::new(DriveApiClient::new(auth, client_id, &rt));
@@ -418,11 +424,13 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     let sync_dir = cfg.sync.local_dir.to_string_lossy().to_string();
     let db = libresync_core::db::Database::open_default().ok().map(|d| Arc::new(d));
     let new_engine = SyncEngine::new(drive_api, sync_config, &sync_dir, db);
+    println!("[oauth] Novo engine criado com credenciais reais");
 
     // Replace engine in global state with real credentials
     let mut eng = engine.lock().await;
     *eng = Some(new_engine);
     drop(eng);
+    println!("[oauth] Engine substituído no estado global");
 
     let _ = tokio::task::spawn_blocking(|| {
         let _ = notify_rust::Notification::new()

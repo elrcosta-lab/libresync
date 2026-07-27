@@ -92,10 +92,18 @@ async fn main() {
         // Spawn sync loop using tauri's async runtime
         let eng = engine.clone();
         let sync_handle = tauri::async_runtime::spawn(async move {
+            let mut last_engine_id = 0usize;
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 let mut e = eng.lock().await;
                 if let Some(ref mut engine) = *e {
+                    // Detectar se o engine foi substituído
+                    let engine_ptr = engine as *const _ as usize;
+                    if engine_ptr != last_engine_id {
+                        println!("[sync] Engine atualizado (ptr: {})", engine_ptr);
+                        last_engine_id = engine_ptr;
+                    }
+                    
                     println!("[sync] Iniciando detect_changes...");
                     match engine.detect_changes().await {
                         Ok(()) => {
