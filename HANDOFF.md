@@ -56,6 +56,16 @@
 
 **Arquivos alterados:** `src/main.rs`, `src/tray_app.rs`
 
+### ✅ Panic de runtime aninhado em chamadas síncronas
+**Causa raiz:** Chamadas síncronas como `open::that()` e `std::process::Command::new("zenity")` estavam sendo executadas diretamente dentro de contextos assíncronos (handlers do Tauri e `do_oauth_flow`). Essas chamadas podem internamente usar `block_on` ou bloquear a thread, causando o panic "Cannot start a runtime from within a runtime".
+
+**Correção:**
+- Todas as chamadas `open::that()` foram envoltas em `tokio::task::spawn_blocking()` para executar em uma thread separada sem bloquear o runtime assíncrono.
+- Todas as chamadas `std::process::Command::new("zenity")` foram envoltas em `tokio::task::spawn_blocking()` para o mesmo motivo.
+- Adicionado tratamento de erro mais robusto para o erro 401 (token expirado), notificando o usuário para fazer login novamente.
+
+**Arquivos alterados:** `src/tray_app.rs`, `src/main.rs`
+
 ### ✅ O sync não está populando a pasta
 **Causa raiz (fase 1):** `SyncEngine::handle_download_job()` chamava `drive_client.download()` mas descartava os bytes retornados — nunca escrevia no arquivo local.
 
