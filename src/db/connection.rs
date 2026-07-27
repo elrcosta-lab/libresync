@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS sync_state (
 CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     file_path TEXT NOT NULL,
+    remote_file_id TEXT,
     job_type TEXT NOT NULL,
     priority INTEGER NOT NULL DEFAULT 10,
     state TEXT NOT NULL DEFAULT 'Queued',

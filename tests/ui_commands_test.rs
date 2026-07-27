@@ -59,6 +59,11 @@ fn test_get_recent_events_empty() {
 fn test_update_config_alters_state() {
     let mut state = make_state();
     let new_config = UIConfig {
+        client_id: String::new(),
+        sync_folder: String::new(),
+        bandwidth_limit: 0,
+        auto_start: false,
+        polling_interval: 30,
         auto_sync_on_login: false,
         notify_only_errors: true,
         minimize_to_tray: false,

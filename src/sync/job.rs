@@ -32,6 +32,7 @@ pub struct SyncJob {
     pub max_retries: u32,
     pub created_at: u64,
     pub error_message: Option<String>,
+    pub remote_file_id: Option<String>,
 }
 
 impl SyncJob {
@@ -50,11 +51,17 @@ impl SyncJob {
             max_retries: 5,
             created_at: now,
             error_message: None,
+            remote_file_id: None,
         }
     }
 
     pub fn with_priority(mut self, priority: u8) -> Self {
         self.priority = priority;
+        self
+    }
+
+    pub fn with_remote_file_id(mut self, remote_file_id: &str) -> Self {
+        self.remote_file_id = Some(remote_file_id.to_string());
         self
     }
 }

@@ -15,6 +15,13 @@ window.addEventListener('message', (e) => {
 });
 
 async function invoke(cmd, args = {}) {
+  // Tauri v2 public API (window.__TAURI__.core.invoke)
+  const tauri = window.__TAURI__;
+  if (tauri && tauri.core && typeof tauri.core.invoke === 'function') {
+    return tauri.core.invoke(cmd, args);
+  }
+
+  // Fallback: raw Tauri internals (for older or non-bundler builds)
   const internals = window.__TAURI_INTERNALS__;
   if (!internals || !internals.postMessage) {
     throw new Error('Tauri IPC não disponível');

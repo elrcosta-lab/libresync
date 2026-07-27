@@ -51,6 +51,7 @@ fn row_to_job(row: &rusqlite::Row) -> Result<SyncJob, rusqlite::Error> {
     Ok(SyncJob {
         id: row.get("id")?,
         file_path: row.get("file_path")?,
+        remote_file_id: row.get("remote_file_id")?,
         job_type: job_type_from_str(row.get::<_, String>("job_type")?.as_str())
             .unwrap_or(JobType::Upload),
         priority: row.get::<_, i32>("priority")? as u8,
@@ -66,11 +67,12 @@ fn row_to_job(row: &rusqlite::Row) -> Result<SyncJob, rusqlite::Error> {
 pub fn insert_job(db: &Database, job: &SyncJob) -> Result<(), DbError> {
     let conn = db.conn();
     conn.execute(
-        "INSERT INTO jobs (id, file_path, job_type, priority, state, retry_count, max_retries, created_at, error_message)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO jobs (id, file_path, remote_file_id, job_type, priority, state, retry_count, max_retries, created_at, error_message)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             job.id,
             job.file_path,
+            job.remote_file_id,
             job_type_to_str(&job.job_type),
             job.priority as i32,
             job_state_to_str(&job.state),
@@ -86,7 +88,7 @@ pub fn insert_job(db: &Database, job: &SyncJob) -> Result<(), DbError> {
 pub fn get_job(db: &Database, id: &str) -> Result<Option<SyncJob>, DbError> {
     let conn = db.conn();
     let mut stmt = conn.prepare(
-        "SELECT id, file_path, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs WHERE id = ?1",
+        "SELECT id, file_path, remote_file_id, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs WHERE id = ?1",
     )?;
     let mut rows = stmt.query(params![id])?;
     match rows.next()? {
@@ -101,7 +103,7 @@ pub fn list_jobs(db: &Database, state: Option<JobState>) -> Result<Vec<SyncJob>,
     match state {
         Some(s) => {
             let mut stmt = conn.prepare(
-                "SELECT id, file_path, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs WHERE state = ?1 ORDER BY priority DESC, created_at ASC",
+                "SELECT id, file_path, remote_file_id, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs WHERE state = ?1 ORDER BY priority DESC, created_at ASC",
             )?;
             let rows = stmt.query_map(params![job_state_to_str(&s)], row_to_job)?;
             for row in rows {
@@ -110,7 +112,7 @@ pub fn list_jobs(db: &Database, state: Option<JobState>) -> Result<Vec<SyncJob>,
         }
         None => {
             let mut stmt = conn.prepare(
-                "SELECT id, file_path, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs ORDER BY priority DESC, created_at ASC",
+                "SELECT id, file_path, remote_file_id, job_type, priority, state, retry_count, max_retries, created_at, error_message FROM jobs ORDER BY priority DESC, created_at ASC",
             )?;
             let rows = stmt.query_map([], row_to_job)?;
             for row in rows {

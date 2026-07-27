@@ -6,6 +6,7 @@
     "frontendDist": "./gui"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "LibreSync",

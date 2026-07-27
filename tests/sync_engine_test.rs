@@ -229,7 +229,8 @@ async fn test_upload_with_conflict_resolved_local() {
     mock.add_file("conflito.txt", "conflito.txt", b"remote version".to_vec(), Some(remote_hash));
 
     let mut engine = create_engine_with_mock(mock.clone());
-    let job = SyncJob::new(file_path.to_str().unwrap(), JobType::Upload);
+    let job = SyncJob::new(file_path.to_str().unwrap(), JobType::Upload)
+        .with_remote_file_id("conflito.txt");
     {
         let mut queue = engine.job_queue.lock().unwrap();
         queue.enqueue(job);
@@ -259,7 +260,8 @@ async fn test_download_with_conflict_resolved_remote() {
     mock.add_file("baixado.txt", "baixado.txt", b"remote content".to_vec(), Some(remote_hash));
 
     let mut engine = create_engine_with_mock(mock.clone());
-    let job = SyncJob::new(file_path.to_str().unwrap(), JobType::Download);
+    let job = SyncJob::new(file_path.to_str().unwrap(), JobType::Download)
+        .with_remote_file_id("baixado.txt");
     {
         let mut queue = engine.job_queue.lock().unwrap();
         queue.enqueue(job);
@@ -279,7 +281,8 @@ async fn test_delete_with_restore() {
     mock.add_file("remoto.txt", "remoto.txt", b"remote content".to_vec(), Some("abc123"));
 
     let mut engine = create_engine_with_mock(mock.clone());
-    let job = SyncJob::new("/local/remoto.txt", JobType::Delete);
+    let job = SyncJob::new("/local/remoto.txt", JobType::Delete)
+        .with_remote_file_id("remoto.txt");
     {
         let mut queue = engine.job_queue.lock().unwrap();
         queue.enqueue(job);
@@ -290,4 +293,32 @@ async fn test_delete_with_restore() {
     let completed = engine.get_jobs_by_state(JobState::Completed);
     assert_eq!(completed.len(), 1);
     assert_eq!(completed[0].job_type, JobType::Delete);
+}
+
+#[tokio::test]
+async fn test_download_job_writes_file_to_disk() {
+    let mock = Arc::new(StatefulMockDriveApi::new());
+    let dir = TempDir::new().unwrap();
+    let sync_dir = dir.path().to_string_lossy().to_string();
+    let remote_content = b"remote file content for download";
+
+    mock.add_file("arquivo_remoto.txt", "arquivo_remoto.txt", remote_content.to_vec(), Some("abc123"));
+
+    let mut engine = SyncEngine::new(mock.clone(), SyncConfig::default(), &sync_dir, None);
+    let job = SyncJob::new("arquivo_remoto.txt", JobType::Download)
+        .with_remote_file_id("arquivo_remoto.txt");
+    {
+        let mut queue = engine.job_queue.lock().unwrap();
+        queue.enqueue(job);
+    }
+
+    engine.process_queue().await.unwrap();
+
+    let completed = engine.get_jobs_by_state(JobState::Completed);
+    assert_eq!(completed.len(), 1);
+    assert_eq!(completed[0].job_type, JobType::Download);
+
+    let local_path = format!("{}/arquivo_remoto.txt", sync_dir);
+    let local_content = tokio::fs::read(&local_path).await.unwrap();
+    assert_eq!(local_content, remote_content, "downloaded file must be written to local sync dir");
 }

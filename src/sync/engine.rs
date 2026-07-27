@@ -101,7 +101,8 @@ impl SyncEngine {
 
         let mut queue = self.job_queue.lock().unwrap();
         for f in &remote_files {
-            let job = SyncJob::new(&f.name, JobType::Download);
+            let job = SyncJob::new(&f.name, JobType::Download)
+                .with_remote_file_id(&f.id);
             queue.enqueue(job);
         }
         drop(queue);
@@ -244,7 +245,8 @@ impl SyncEngine {
             .await
             .map_err(|e| SyncError::EngineError(format!("write: {}", e)))?;
 
-        let job = SyncJob::new(&local_path, JobType::Download);
+        let job = SyncJob::new(&local_path, JobType::Download)
+            .with_remote_file_id(file_id);
         self.job_queue.lock().unwrap().enqueue(job);
         Ok(())
     }
@@ -261,7 +263,12 @@ impl SyncEngine {
         });
         let local_hash = compute_local_hash(&local_content);
 
-        match self.drive_client.get_metadata(name).await {
+        let remote_lookup = match &job.remote_file_id {
+            Some(id) => self.drive_client.get_metadata(id).await,
+            None => Err(DriveError::NotFound(name.to_string())),
+        };
+
+        match remote_lookup {
             Ok(remote_file) => {
                 if let Some(ref remote_hash) = remote_file.md5_checksum {
                     if remote_hash != &local_hash {
@@ -285,7 +292,8 @@ impl SyncEngine {
                                 Ok(())
                             }
                             Ok(ConflictResolution::KeepRemote { .. }) => {
-                                self.drive_client.download(&remote_file.id).await?;
+                                let data = self.drive_client.download(&remote_file.id).await?;
+                                self.write_downloaded_file(name, &data).await?;
                                 Ok(())
                             }
                             Ok(ConflictResolution::KeepBoth { remote_copy_path, .. }) => {
@@ -295,7 +303,8 @@ impl SyncEngine {
                                 Ok(())
                             }
                             Ok(ConflictResolution::RestoreRemote) => {
-                                self.drive_client.download(&remote_file.id).await?;
+                                let data = self.drive_client.download(&remote_file.id).await?;
+                                self.write_downloaded_file(name, &data).await?;
                                 Ok(())
                             }
                             Err(_) => {
@@ -322,6 +331,19 @@ impl SyncEngine {
         }
     }
 
+    async fn write_downloaded_file(&self, name: &str, data: &[u8]) -> Result<(), DriveError> {
+        let local_path = format!("{}/{}", self.sync_dir, name);
+        if let Some(parent) = std::path::Path::new(&local_path).parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| DriveError::Network(format!("mkdir: {}", e)))?;
+        }
+        tokio::fs::write(&local_path, data)
+            .await
+            .map_err(|e| DriveError::Network(format!("write: {}", e)))?;
+        Ok(())
+    }
+
     async fn handle_download_job(&self, job: &SyncJob) -> Result<(), DriveError> {
         let local_path = &job.file_path;
         let name = std::path::Path::new(local_path)
@@ -329,7 +351,12 @@ impl SyncEngine {
             .and_then(|n| n.to_str())
             .unwrap_or(local_path);
 
-        match self.drive_client.get_metadata(name).await {
+        let file_id = match &job.remote_file_id {
+            Some(id) => id.as_str(),
+            None => name,
+        };
+
+        match self.drive_client.get_metadata(file_id).await {
             Ok(remote_file) => {
                 if let Ok(local_content) = tokio::fs::read(local_path).await {
                     let local_hash = compute_local_hash(&local_content);
@@ -344,7 +371,8 @@ impl SyncEngine {
                             };
                             return match self.conflict_engine.handle_conflict(input) {
                                 Ok(ConflictResolution::KeepRemote { .. }) => {
-                                    self.drive_client.download(&remote_file.id).await?;
+                                    let data = self.drive_client.download(&remote_file.id).await?;
+                                    self.write_downloaded_file(name, &data).await?;
                                     Ok(())
                                 }
                                 Ok(ConflictResolution::KeepLocal { .. }) => Ok(()),
@@ -354,25 +382,30 @@ impl SyncEngine {
                                     self.drive_client
                                         .upload(&remote_copy_path, &remote_content, "application/octet-stream", None)
                                         .await?;
+                                    self.write_downloaded_file(name, &local_content).await?;
                                     Ok(())
                                 }
                                 Ok(ConflictResolution::RestoreRemote) => {
-                                    self.drive_client.download(&remote_file.id).await?;
+                                    let data = self.drive_client.download(&remote_file.id).await?;
+                                    self.write_downloaded_file(name, &data).await?;
                                     Ok(())
                                 }
                                 Err(_) => {
-                                    self.drive_client.download(&remote_file.id).await?;
+                                    let data = self.drive_client.download(&remote_file.id).await?;
+                                    self.write_downloaded_file(name, &data).await?;
                                     Ok(())
                                 }
                             };
                         }
                     }
                 }
-                self.drive_client.download(&remote_file.id).await?;
+                let data = self.drive_client.download(&remote_file.id).await?;
+                self.write_downloaded_file(name, &data).await?;
                 Ok(())
             }
             Err(DriveError::NotFound(_)) => {
-                self.drive_client.download(local_path).await?;
+                let data = self.drive_client.download(file_id).await?;
+                self.write_downloaded_file(name, &data).await?;
                 Ok(())
             }
             Err(e) => Err(e),
@@ -388,7 +421,12 @@ impl SyncEngine {
 
         let local_exists = tokio::fs::metadata(local_path).await.is_ok();
 
-        match self.drive_client.get_metadata(name).await {
+        let file_id = match &job.remote_file_id {
+            Some(id) => id.as_str(),
+            None => name,
+        };
+
+        match self.drive_client.get_metadata(file_id).await {
             Ok(remote_file) => {
                 if !local_exists {
                     let input = ConflictInput::LocalDeletedRemoteModified {
@@ -396,7 +434,8 @@ impl SyncEngine {
                         remote_hash: remote_file.md5_checksum.clone().unwrap_or_default(),
                     };
                     if let Ok(ConflictResolution::RestoreRemote) = self.conflict_engine.handle_conflict(input) {
-                        self.drive_client.download(&remote_file.id).await?;
+                        let data = self.drive_client.download(&remote_file.id).await?;
+                        self.write_downloaded_file(name, &data).await?;
                         return Ok(());
                     }
                 } else {
@@ -411,7 +450,7 @@ impl SyncEngine {
                 }
                 self.drive_client.delete(&remote_file.id).await
             }
-            Err(DriveError::NotFound(_)) => self.drive_client.delete(local_path).await,
+            Err(DriveError::NotFound(_)) => self.drive_client.delete(file_id).await,
             Err(e) => Err(e),
         }
     }

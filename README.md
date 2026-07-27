@@ -124,14 +124,14 @@ gui/
 ## Testes
 
 ```bash
-# Testes unitários
-cargo test --lib
+# Testes unitários completos
+cargo test
 
-# Testes de integração (requer credenciais Google)
-GOOGLE_CLIENT_ID=... GOOGLE_REFRESH_TOKEN=... \
+# Testes de integração (requer credenciais Google reais)
+GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=... \
   cargo test --features integration-test
 
-# Cobertura total: 51 testes unitários + testes de integração
+# Cobertura total: 51 testes unitários + 6 testes de integração
 ```
 
 ## Pacote .deb
@@ -147,6 +147,25 @@ sudo dpkg -i libresync_0.1.0_amd64.deb
 podman build -t libresync-test .
 podman run --rm libresync-test libresync-core --help
 ```
+
+## Troubleshooting
+
+### Sincronização não está baixando arquivos
+
+Se a autenticação funciona mas a pasta de sync não é populada:
+
+1. **Verifique os logs:** execute `libresync-core` (modo terminal) para ver mensagens detalhadas
+2. **Token expirado ou inválido:** faça login novamente pelo tray → "Conectar conta Google"
+3. **Client ID incorreto:** verifique no tray → "Configurar Client ID" se o valor está correto
+4. **Arquivos vazios no Drive:** `detect_changes()` lista arquivos com `trashed=false` — se sua pasta do Drive está vazia, não há nada para baixar
+5. **Polling ativo:** o engine verifica mudanças remotas a cada 30s (padrão) — aguarde o ciclo
+
+### WebView não abre / IPC não funciona
+
+A interface gráfica (Preferences) depende do runtime Tauri. Se a janela não abrir:
+- Verifique se `libwebkit2gtk-4.1-dev` e `libgtk-3-dev` estão instalados
+- Execute `libresync-core --tray` diretamente no terminal para ver erros de inicialização
+- As ações principais (login, configurar Client ID, pause) funcionam pelo menu do tray mesmo sem WebView
 
 ## Licença
 
