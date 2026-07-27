@@ -253,7 +253,11 @@ fn build_tray(app: &tauri::AppHandle<Wry>) -> tauri::Result<TrayIcon<Wry>> {
                         rt.block_on(async {
                             let cid = get_client_id(&handle).await;
                             if cid.is_empty() { return; }
-                            do_oauth_flow(&cid).await.ok();
+                            let eng = {
+                                let state = handle.state::<AppState>();
+                                state.engine.clone()
+                            };
+                            do_oauth_flow(&cid, &eng).await.ok();
                         });
                     });
                 }
@@ -347,10 +351,16 @@ async fn get_client_id(app: &tauri::AppHandle<Wry>) -> String {
     String::new()
 }
 
-async fn do_oauth_flow(client_id: &str) -> Result<(), String> {
+async fn do_oauth_flow(client_id: &str, engine: &Arc<Mutex<Option<SyncEngine>>>) -> Result<(), String> {
     use libresync_core::auth::provider::GoogleAuthProvider;
     use libresync_core::auth::server::CallbackServer;
     use libresync_core::auth::session::PkceSession;
+    use libresync_core::config::LibreSyncConfig;
+    use libresync_core::drive::client::DriveApiClient;
+    use libresync_core::drive::DriveApi;
+    use libresync_core::sync::config::SyncConfig;
+    use libresync_core::sync::engine::SyncEngine;
+    use std::sync::Arc;
 
     let session = PkceSession::new(client_id);
     let redirect_uri = "http://localhost:65432/callback";
@@ -367,9 +377,24 @@ async fn do_oauth_flow(client_id: &str) -> Result<(), String> {
         .await.map_err(|e| format!("Token: {}", e))?;
 
     let rt = token.refresh_token.unwrap_or_default();
-    let mut cfg = libresync_core::config::LibreSyncConfig::load().unwrap_or_default();
-    cfg.google.refresh_token = Some(rt);
+
+    // Save tokens and recreate engine with real credentials
+    let mut cfg = LibreSyncConfig::load().unwrap_or_default();
+    cfg.google.client_id = client_id.to_string();
+    cfg.google.refresh_token = Some(rt.clone());
     cfg.save().ok();
+
+    let auth = Arc::new(GoogleAuthProvider::new());
+    let drive_api: Arc<dyn DriveApi> = Arc::new(DriveApiClient::new(auth, client_id, &rt));
+    let sync_config = SyncConfig::default();
+    let sync_dir = cfg.sync.local_dir.to_string_lossy().to_string();
+    let db = libresync_core::db::Database::open_default().ok().map(|d| Arc::new(d));
+    let new_engine = SyncEngine::new(drive_api, sync_config, &sync_dir, db);
+
+    // Replace engine in global state with real credentials
+    let mut eng = engine.lock().unwrap();
+    *eng = Some(new_engine);
+    drop(eng);
 
     let _ = notify_rust::Notification::new()
         .summary("LibreSync")
