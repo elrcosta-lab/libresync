@@ -127,6 +127,13 @@ async fn run_oauth_flow(client_id: &str) -> Result<(), String> {
     let auth_url = session.authorization_url(redirect_uri);
     let server = CallbackServer::new().with_timeout(std::time::Duration::from_secs(300));
 
+    let expected_state = session.state.clone();
+    let callback_task = tauri::async_runtime::spawn(async move {
+        server.wait_for_callback(&expected_state).await
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
     // Envolver open::that em spawn_blocking para não bloquear o runtime
     let url_clone = auth_url.clone();
     tokio::task::spawn_blocking(move || {
@@ -135,7 +142,9 @@ async fn run_oauth_flow(client_id: &str) -> Result<(), String> {
     .await
     .ok();
 
-    let cb = server.wait_for_callback(&session.state).await
+    let cb = callback_task
+        .await
+        .map_err(|e| format!("Callback task: {}", e))?
         .map_err(|e| format!("Erro no callback: {}", e))?;
 
     let provider = GoogleAuthProvider::new();
@@ -371,6 +380,13 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     let auth_url = session.authorization_url(redirect_uri);
     let server = CallbackServer::new().with_timeout(std::time::Duration::from_secs(300));
 
+    let expected_state = session.state.clone();
+    let callback_task = tauri::async_runtime::spawn(async move {
+        server.wait_for_callback(&expected_state).await
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
     // Envolver open::that em spawn_blocking para não bloquear o runtime
     let url_clone = auth_url.clone();
     tokio::task::spawn_blocking(move || {
@@ -379,7 +395,9 @@ async fn do_oauth_flow(client_id: &str, engine: &Arc<tokio::sync::Mutex<Option<S
     .await
     .ok();
 
-    let cb = server.wait_for_callback(&session.state).await
+    let cb = callback_task
+        .await
+        .map_err(|e| format!("Callback task: {}", e))?
         .map_err(|e| format!("Callback: {}", e))?;
 
     let provider = GoogleAuthProvider::new();
