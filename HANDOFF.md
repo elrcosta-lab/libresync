@@ -36,7 +36,16 @@
 
 ## Pendências Resolvidas (última sessão)
 
-### ✅ Panic de runtime aninhado no modo tray
+### ✅ Panic de runtime aninhado no menu do tray
+**Causa raiz:** O handler do menu "login" estava criando um novo runtime Tokio com `std::thread::spawn()` + `Runtime::new()` + `block_on()` dentro do contexto do Tauri. Isso causava o panic "Cannot start a runtime from within a runtime".
+
+**Correção:**
+- Substituído `std::thread::spawn()` + `block_on()` por `tauri::async_runtime::spawn()` no handler do menu "login".
+- O Tauri fornece seu próprio runtime assíncrono que é seguro usar dentro dos handlers de eventos.
+
+**Arquivos alterados:** `src/tray_app.rs`
+
+### ✅ Panic de runtime aninhado no loop de sync
 **Causa raiz:** O `main()` usa `#[tokio::main]` que cria um runtime Tokio. O `run_tray()` estava criando outro runtime com `Runtime::new().unwrap()` e `block_on()`, causando o panic "Cannot start a runtime from within a runtime".
 
 **Correção:**
